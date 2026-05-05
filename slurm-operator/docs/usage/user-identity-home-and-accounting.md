@@ -16,6 +16,20 @@ It does not model users directly. User identity is provided by the operating
 system identity layer inside the login pod, typically SSSD/PAM/NSS, while Slurm
 accounting is managed separately through SlurmDBD associations.
 
+## Shape-Specific Runbooks
+
+Before applying Slurm values, pick the runbook section for the exact OKE GPU
+shape:
+
+| Shape | Runbook section | Main difference |
+| --- | --- | --- |
+| `BM.GPU4.8` | [Shape: BM.GPU4.8](oke-slurm-shape-runbooks.md#shape-bmgpu48) | SR-IOV/VF pod networking, 8 GPUs, 16 VFs, BM.GPU4.8 NUMA-shaped NVML autodetect path |
+| `BM.GPU.GB200.4` | [Shape: BM.GPU.GB200.4](oke-slurm-shape-runbooks.md#shape-bmgpugb2004) | hostNetwork, arm64 worker, 4 GPUs, worker sshd on `Port 2222` |
+
+The identity model is the same for both shapes: users come from LDAP through
+SSSD, `/home` comes from FSS, and SlurmDBD records the submitting user. The
+worker values are not interchangeable.
+
 ## Recommended Architecture
 
 For production clusters, use:

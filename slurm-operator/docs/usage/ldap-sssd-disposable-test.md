@@ -8,6 +8,16 @@ This is not a production LDAP design. It exists to validate the Slurm-side path.
 For an in-cluster production LDAP direction, use
 [HA OpenLDAP for Slurm Identity on Kubernetes](ldap-sssd-ha-openldap.md).
 
+## Shape: BM.GPU4.8
+
+This disposable validation runbook applies to the previous `BM.GPU4.8` test
+path. It uses SR-IOV/VF pod networking, FSS-backed `/home`, SSSD in Slurm pods,
+and the BM.GPU4.8 Slurm values overlay.
+
+Do not use this as the `BM.GPU.GB200.4` guide. For GB200, use the
+[BM.GPU.GB200.4 shape section](oke-slurm-shape-runbooks.md#shape-bmgpugb2004)
+and the `oke-gb200-*` manifests.
+
 The disposable test validates:
 
 - LDAP publishes the POSIX user, group, home directory, shell, and SSH public

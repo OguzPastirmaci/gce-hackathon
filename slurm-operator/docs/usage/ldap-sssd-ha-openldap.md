@@ -7,6 +7,23 @@ Keep the [LDAP/SSSD Disposable Test Runbook](ldap-sssd-disposable-test.md)
 separate. It validates the Slurm and SSSD path, but it is not an HA identity
 service.
 
+Start with the [OKE Slurm Shape Runbooks](oke-slurm-shape-runbooks.md) before
+applying manifests. `BM.GPU4.8` and `BM.GPU.GB200.4` use different worker
+networking, node architecture, GPU counts, and Slurm GPU-detection behavior.
+
+## Shape-Specific Entry Points
+
+Use this LDAP design as the shared identity layer, but deploy Slurm from the
+shape-specific section that matches the GPU workers:
+
+| Shape | Start here | Worker path |
+| --- | --- | --- |
+| `BM.GPU4.8` | [Shape: BM.GPU4.8](oke-slurm-shape-runbooks.md#shape-bmgpu48) | SR-IOV/VF pod networking, 8 A100 GPUs, `AutoDetect=nvml` with NUMA-shaped dynamic-node topology |
+| `BM.GPU.GB200.4` | [Shape: BM.GPU.GB200.4](oke-slurm-shape-runbooks.md#shape-bmgpugb2004) | hostNetwork, 4 GB200 GPUs, arm64 worker image, worker sshd on `Port 2222` |
+
+Do not copy the GB200 hostNetwork values, `Port 2222` override, or arm64-only
+assumptions into the BM.GPU4.8 SR-IOV path.
+
 ## Recommendation
 
 Run OpenLDAP as a **single writable primary with read replicas**:
@@ -85,46 +102,35 @@ Use OCI Block Volume PVCs for LDAP state. Do not store the LDAP database on FSS.
 FSS remains the right backing store for user home directories, not for LDAP's
 database files.
 
-## Apply-Ready Test Manifests
+## Shape-Specific Deployment Notes
 
-The guide repo contains an apply-ready HA OpenLDAP manifest set for the current
-OKE validation cluster:
+### BM.GPU4.8
 
-```text
-guides/slurm-operator/multi-user-oke/manifests/ha-openldap/
-```
+`BM.GPU4.8` workers are `amd64` in the tested environment. The existing
+BM.GPU4.8 path uses SR-IOV/VF pod networking and 8 GPUs per node. Do not copy
+the GB200 hostNetwork sshd port override into this path.
 
-Deploy it from the combined repo root:
+The BM.GPU4.8 `AutoDetect=nvml` investigation is tracked separately in
+`oke-bm-gpu4-autodetect-test-log.md`. The working path uses
+`AutoDetect=nvml` with NUMA-shaped dynamic-node topology:
+`Parameters=numa_node_as_socket`, `SocketsPerBoard=8`, `CoresPerSocket=8`,
+`ThreadsPerCore=1`, and `CPUs=64`. Earlier attempts without that NodeSet
+topology failed because GPU core affinity did not match Slurm socket
+boundaries.
 
-```bash
-kubectl apply -k guides/slurm-operator/multi-user-oke/manifests/ha-openldap
-kubectl -n identity rollout status statefulset/openldap --timeout=10m
-kubectl -n identity wait --for=condition=complete job/openldap-bootstrap --timeout=5m
-kubectl -n identity get pods,pvc,svc -o wide
-```
+### BM.GPU.GB200.4
 
-The manifest set creates:
+On GB200 OKE clusters the GPU worker node is `arm64`. Any container scheduled
+there must have a `linux/arm64` image. For the GB200 guide, keep Slurm worker
+images multi-platform, for example `linux/amd64` plus `linux/arm64`, because
+the same tag may be reused across CPU control-plane nodes and GB200 worker
+nodes.
 
-- `Namespace/identity`;
-- `StatefulSet/openldap` with three replicas;
-- `openldap-headless`, `openldap-primary`, and `openldap-read` Services;
-- one data PVC and one config PVC per replica using `oci-bv`;
-- `openldap-credentials` Secret with sample test credentials;
-- `site-sssd-ha-ldap-conf` Secret in the `slurm` namespace;
-- bootstrap Job that creates `alice`, `project-a`, and `sssd-reader`;
-- PDB and NetworkPolicy.
-
-The config PVC is required. The OpenLDAP image keeps the config database under
-`/etc/ldap/slapd.d`; persisting only `/var/lib/ldap` causes pods to fail after
-restart with an existing data directory and an empty config directory.
-
-The current manifest is for validation. Before production use:
-
-- replace all sample passwords;
-- enable LDAPS or StartTLS;
-- use a real CA bundle in SSSD clients;
-- add backup, restore, and replica-promotion runbooks;
-- decide how secrets are generated and rotated.
+Identity services such as OpenLDAP, MariaDB, SSSD helper pods, and Slurm
+controller/login pods can be pinned to CPU nodes if their images have only been
+validated for `linux/amd64`. If you remove those node selectors or schedule
+identity services on the GB200 node, validate every image manifest for
+`linux/arm64` first.
 
 ## Services
 
@@ -172,6 +178,13 @@ Avoid active/active multi-provider replication for the first production version.
 It improves write availability, but it also adds conflict behavior that is not
 worth the risk for UID/GID and group identity data.
 
+For the `helm-openldap/openldap-stack-ha` chart, validate that the primary data
+database has the `syncprov` overlay, not only the config database. The replicas
+may bind and search the primary successfully but remain empty if
+`olcOverlay=syncprov,olcDatabase={2}mdb,cn=config` is missing on the primary.
+The GB200 test manifest includes
+`oke-gb200-ha-openldap-primary-syncprov.ldif` for this check/fix.
+
 ## SSSD Configuration
 
 Slurm pods should use the HA LDAP endpoints through SSSD:
@@ -185,8 +198,6 @@ domains = LDAP
 [nss]
 filter_users = root,slurm
 filter_groups = root,slurm
-entry_cache_timeout = 60
-entry_cache_nowait_percentage = 75
 
 [pam]
 
@@ -196,6 +207,7 @@ entry_cache_nowait_percentage = 75
 id_provider = ldap
 auth_provider = ldap
 access_provider = ldap
+entry_cache_timeout = 60
 
 ldap_uri = ldaps://openldap-0.openldap-headless.identity.svc.cluster.local,ldaps://openldap-1.openldap-headless.identity.svc.cluster.local,ldaps://openldap-2.openldap-headless.identity.svc.cluster.local
 ldap_search_base = dc=example,dc=org
@@ -390,56 +402,11 @@ kubectl -n slurm exec slurm-controller-0 -c slurmctld -- \
   sacctmgr -nP show assoc user=alice format=User,Account,DefaultQOS,QOS
 ```
 
-## Current OKE Validation
-
-Validated on the current OKE cluster on 2026-05-05:
-
-- applied `manifests/ha-openldap`;
-- all three pods reached `1/1 Running`;
-- `openldap-bootstrap` completed;
-- each replica has a data PVC and config PVC on `oci-bv`;
-- `sssd-reader` can read `alice` from `openldap-0`, `openldap-1`, and
-  `openldap-2`;
-- adding `bob` through `openldap-0` replicated to both replicas;
-- adding `carol` through `openldap-primary.identity.svc.cluster.local`
-  replicated to both replicas;
-- direct write to `openldap-1` failed with LDAP `53 operation restricted`;
-- deleting `openldap-2` recreated it successfully with zero restarts and the
-  LDAP data remained readable.
-- updated the live HA LDAP `alice` entry with the real
-  `/home/ubuntu/.ssh/alice_slurm_test.pub` key;
-- switched the live Slurm release from `site-sssd-ldap-test-conf` to
-  `site-sssd-ha-ldap-conf`;
-- confirmed login, worker, and controller SSSD configs use the HA OpenLDAP
-  replica URIs;
-- confirmed `getent passwd alice`, `id alice`, and
-  `sss_ssh_authorizedkeys alice` work from the login pod;
-- confirmed `getent passwd alice` and `id alice` work from a worker pod and the
-  controller container;
-- confirmed SSH as `alice` through the login LoadBalancer works with
-  LDAP-backed SSH keys;
-- confirmed `/home/alice` is mounted from FSS and `/home/bob` cannot be listed
-  by `alice`;
-- submitted job `8` over SSH as `alice` with `--account=project-a` and
-  `--gres=gpu:1`;
-- confirmed `scontrol show job 8` resolves `UserId=alice(10001)`,
-  `GroupId=alice(10001)`, `Account=project-a`, and `TresPerNode=gres/gpu:1`;
-- confirmed `sacct -j 8` reports `8|alice|project-a|COMPLETED|0:0|...`.
-
-The concrete values file used for the HA OpenLDAP end-to-end test is:
-
-```text
-guides/slurm-operator/multi-user-oke/overlays/values-oke-bm-gpu4-8-fss-sssd-ha-openldap-controller-sssd.yaml
-```
-
-That file preserves the current static `gres.conf` from the live cluster and
-changes only the SSSD Secret references from the disposable LDAP Secret to
-`site-sssd-ha-ldap-conf`.
-
 ## Open Items Before Implementation
 
-- Replace the test OpenLDAP image and bootstrap scripts with the final approved
-  image and configuration mechanism.
+- Choose the OpenLDAP container image and version.
+- Decide whether to use dynamic `cn=config`, static config, or a generated
+  config mounted at startup.
 - Define the exact LDAP suffix, for example `dc=example,dc=org`.
 - Define UID/GID ranges and ownership policy.
 - Define the SSH public key attribute, for example `sshPublicKey`.
