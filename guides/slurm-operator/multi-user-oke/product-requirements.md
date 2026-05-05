@@ -136,6 +136,7 @@ The current OKE test cluster validates the following:
 - `alice` is associated with Slurm account `project-a`;
 - no-LDAP wrapper path was tested successfully;
 - LDAP-backed SSSD path was tested successfully with disposable OpenLDAP;
+- HA OpenLDAP-backed SSSD path was tested successfully end to end with `alice`;
 - `alice` resolves through SSSD in login and worker pods without a local
   `/etc/passwd` entry;
 - `alice` resolves through SSSD/NSS in the controller pod using the custom
@@ -150,6 +151,9 @@ Known limitation:
   and an explicit SSSD sidecar in the values overlay. This is validated, but
   still needs first-class chart/image productization before it is a polished
   default.
+- cert-manager is installed in the test cluster, but the HA OpenLDAP validation
+  still uses plaintext LDAP. LDAP CA issuance, server certificates, and SSSD CA
+  trust remain production hardening work.
 
 ## User Experience Requirements
 
@@ -272,6 +276,66 @@ P1 requirements:
 - Bind credentials can be rotated without image rebuilds.
 - Replica promotion and restore are documented and tested if OpenLDAP runs
   inside Kubernetes.
+
+### LDAP TLS and CA Management
+
+Current status:
+
+- cert-manager is available in the OKE test cluster for Kubernetes certificate
+  automation.
+- The validated HA OpenLDAP test currently uses `ldap://` endpoints and
+  `ldap_id_use_start_tls = false`.
+- No LDAP `Issuer`, `ClusterIssuer`, or `Certificate` resources are part of the
+  HA OpenLDAP manifests yet.
+
+P0 production requirements:
+
+- Production LDAP traffic from Slurm SSSD clients to the identity source uses
+  LDAPS or StartTLS, not plaintext LDAP.
+- If OpenLDAP runs inside Kubernetes, cert-manager is the default
+  Kubernetes-native mechanism for issuing and rotating LDAP server
+  certificates.
+- The LDAP certificate covers every DNS name used by SSSD and admin clients,
+  including:
+  - `openldap-0.openldap-headless.identity.svc.cluster.local`;
+  - `openldap-1.openldap-headless.identity.svc.cluster.local`;
+  - `openldap-2.openldap-headless.identity.svc.cluster.local`;
+  - `openldap-primary.identity.svc.cluster.local`;
+  - `openldap-read.identity.svc.cluster.local`.
+- OpenLDAP pods mount the server certificate, private key, and CA bundle from
+  Kubernetes Secrets.
+- OpenLDAP config enables TLS for client traffic and replication traffic.
+- SSSD clients mount the trusted LDAP CA bundle and set `ldap_tls_cacert`.
+- SSSD uses either `ldaps://...` URIs or StartTLS with
+  `ldap_id_use_start_tls = true`.
+- Certificate rotation causes predictable reload or rollout of affected
+  OpenLDAP and Slurm SSSD pods.
+
+P1 requirements:
+
+- Certificate expiration is monitored.
+- CA rotation supports a dual-trust window so existing and new LDAP server
+  certificates can both be trusted during migration.
+- Production deployments can use either an in-cluster cert-manager CA Issuer or
+  an enterprise/private CA issuer, depending on platform security policy.
+
+Acceptance criteria:
+
+```bash
+kubectl -n identity get issuer,clusterissuer,certificate
+kubectl -n identity get secret <ldap-tls-secret>
+kubectl -n slurm exec <login-pod> -c login -- grep -E 'ldap_uri|ldap_id_use_start_tls|ldap_tls_cacert' /etc/sssd/sssd.conf
+kubectl -n slurm exec <login-pod> -c login -- getent passwd alice
+```
+
+Expected:
+
+```text
+LDAP Certificate is Ready=True
+SSSD uses ldaps://... or StartTLS
+SSSD has ldap_tls_cacert configured
+alice resolves through SSSD with TLS enabled
+```
 
 ### Small-Cluster Fallback
 
@@ -455,7 +519,8 @@ P0 requirements:
 P1 requirements:
 
 - LDAPS or StartTLS is required for production identity.
-- CA bundles are managed and rotated.
+- LDAP CA bundles are managed and rotated, preferably through cert-manager for
+  in-cluster OpenLDAP.
 - SSSD cache behavior is documented for offboarding.
 - Audit logs can connect SSH login, Slurm job, account, and UID.
 
@@ -531,7 +596,9 @@ Deliver:
 - production `sssd.conf` for LDAP, FreeIPA, or AD;
 - if LDAP runs inside Kubernetes, HA OpenLDAP with one writable primary and
   read replicas;
-- LDAPS or StartTLS;
+- cert-manager-backed LDAP server certificates and CA bundle distribution for
+  in-cluster OpenLDAP;
+- LDAPS or StartTLS with SSSD CA validation;
 - production SSH key attribute mapping;
 - access control groups;
 - home provisioning process;
@@ -543,6 +610,7 @@ Exit criteria:
 - real user can submit a GPU job;
 - `sacct` records user and account;
 - offboarding and key rotation are validated.
+- LDAP certificate rotation and SSSD CA trust are validated.
 - if in-cluster OpenLDAP is used, read replica failover, primary restore, and
   deliberate replica promotion are validated.
 
@@ -627,6 +695,10 @@ Mitigation: run SSSD as a root sidecar and keep `slurmctld` non-root.
 Risk: Identity-source outage blocks new logins.  
 Mitigation: configure SSSD cache behavior and monitor identity availability.
 
+Risk: LDAP certificate expiry or CA rotation breaks login and user resolution.
+Mitigation: use cert-manager for certificate lifecycle, monitor expiration,
+document CA rotation, and validate SSSD trust after rotation.
+
 Risk: In-cluster OpenLDAP primary failure blocks onboarding and key rotation.  
 Mitigation: serve reads from replicas, back up LDAP data and config, and keep a
 tested restore and deliberate replica-promotion runbook.
@@ -663,6 +735,9 @@ FSS export access, and use root-squash or stronger NFS controls where required.
 - Jobs without valid associations are rejected when enforcement is enabled.
 - Worker pods use `BM.GPU4.8`, GPUs, SR-IOV VFs, and no `hostNetwork`.
 - Production identity uses LDAPS or StartTLS.
+- If OpenLDAP runs inside Kubernetes, cert-manager issues LDAP server
+  certificates, SSSD trusts the LDAP CA bundle, and certificate rotation has
+  been tested.
 - If OpenLDAP runs inside Kubernetes, LDAP runs as a StatefulSet with one
   writable primary, read replicas, tested backup/restore, and documented
   primary promotion.
