@@ -406,6 +406,35 @@ Validated on the current OKE cluster on 2026-05-05:
 - direct write to `openldap-1` failed with LDAP `53 operation restricted`;
 - deleting `openldap-2` recreated it successfully with zero restarts and the
   LDAP data remained readable.
+- updated the live HA LDAP `alice` entry with the real
+  `/home/ubuntu/.ssh/alice_slurm_test.pub` key;
+- switched the live Slurm release from `site-sssd-ldap-test-conf` to
+  `site-sssd-ha-ldap-conf`;
+- confirmed login, worker, and controller SSSD configs use the HA OpenLDAP
+  replica URIs;
+- confirmed `getent passwd alice`, `id alice`, and
+  `sss_ssh_authorizedkeys alice` work from the login pod;
+- confirmed `getent passwd alice` and `id alice` work from a worker pod and the
+  controller container;
+- confirmed SSH as `alice` through the login LoadBalancer works with
+  LDAP-backed SSH keys;
+- confirmed `/home/alice` is mounted from FSS and `/home/bob` cannot be listed
+  by `alice`;
+- submitted job `8` over SSH as `alice` with `--account=project-a` and
+  `--gres=gpu:1`;
+- confirmed `scontrol show job 8` resolves `UserId=alice(10001)`,
+  `GroupId=alice(10001)`, `Account=project-a`, and `TresPerNode=gres/gpu:1`;
+- confirmed `sacct -j 8` reports `8|alice|project-a|COMPLETED|0:0|...`.
+
+The concrete values file used for the HA OpenLDAP end-to-end test is:
+
+```text
+guides/slurm-operator/multi-user-oke/overlays/values-oke-bm-gpu4-8-fss-sssd-ha-openldap-controller-sssd.yaml
+```
+
+That file preserves the current static `gres.conf` from the live cluster and
+changes only the SSSD Secret references from the disposable LDAP Secret to
+`site-sssd-ha-ldap-conf`.
 
 ## Open Items Before Implementation
 

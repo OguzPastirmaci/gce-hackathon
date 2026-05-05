@@ -1,0 +1,223 @@
+#
+# Concrete OKE test values for validating HA OpenLDAP-backed SSSD identity with
+# controller-side NSS resolution.
+#
+# This file was captured from the working live release after switching the SSSD
+# Secret references from the disposable OpenLDAP Secret to
+# `site-sssd-ha-ldap-conf`.
+#
+# It preserves the current BM.GPU4.8, SR-IOV VF, FSS, accounting, controller
+# SSSD sidecar, and static GPU GRES settings from the live cluster. It does not
+# change GPU AutoDetect behavior.
+#
+accounting:
+  enabled: true
+  storageConfig:
+    database: slurm_acct_db
+    host: mariadb
+    passwordKeyRef:
+      key: password
+      name: mariadb-password
+    port: 3306
+    username: slurm
+configFiles:
+  cgroup.conf: |
+    CgroupPlugin=cgroup/v2
+    IgnoreSystemd=yes
+    ConstrainCores=yes
+    ConstrainRAMSpace=no
+    ConstrainDevices=yes
+    ConstrainSwapSpace=no
+  gres.conf: |
+    Name=gpu Type=a100 File=/dev/nvidia[0-7]
+controller:
+  extraConfMap:
+    AccountingStorageEnforce: associations,limits,qos
+    GresTypes: gpu
+    PropagateResourceLimitsExcept: MEMLOCK
+  persistence:
+    enabled: true
+    resources:
+      requests:
+        storage: 10Gi
+    storageClassName: oci-bv
+  podSpec:
+    containers:
+    - args:
+      - |
+        set -euo pipefail
+        install -d -m 0700 /etc/sssd
+        install -o root -g root -m 0600 /etc/sssd-secret/sssd.conf /etc/sssd/sssd.conf
+        install -d -m 0755 /var/lib/sss
+        install -d -m 0700 /var/lib/sss/db /var/lib/sss/keytabs /var/lib/sss/secrets
+        install -d -m 0751 /var/lib/sss/deskprofile
+        install -d -m 0755 /var/lib/sss/gpo_cache /var/lib/sss/pipes /var/lib/sss/pubconf /var/lib/sss/pubconf/krb5.include.d /run/sssd
+        install -d -m 0750 /var/lib/sss/pipes/private /var/log/sssd
+        install -d -m 0775 /var/lib/sss/mc
+        chown -R root:root /var/lib/sss /run/sssd /var/log/sssd
+        chmod 0755 /var/lib/sss /var/lib/sss/gpo_cache /var/lib/sss/pipes /var/lib/sss/pubconf /var/lib/sss/pubconf/krb5.include.d /run/sssd
+        chmod 0700 /var/lib/sss/db /var/lib/sss/keytabs /var/lib/sss/secrets
+        chmod 0751 /var/lib/sss/deskprofile
+        chmod 0750 /var/lib/sss/pipes/private /var/log/sssd
+        chmod 0775 /var/lib/sss/mc
+        rm -f /var/lib/sss/pipes/nss /var/lib/sss/pipes/pam /var/lib/sss/pipes/ssh
+        rm -f /var/lib/sss/pipes/private/* /run/sssd.pid /run/sssd/*.pid
+        exec /usr/sbin/sssd -i
+      command:
+      - /bin/bash
+      - -lc
+      image: ghcr.io/slinkyproject/login:25.11-ubuntu24.04
+      imagePullPolicy: IfNotPresent
+      name: sssd
+      securityContext:
+        allowPrivilegeEscalation: false
+        runAsGroup: 0
+        runAsNonRoot: false
+        runAsUser: 0
+      volumeMounts:
+      - mountPath: /etc/sssd-secret
+        name: sssd-conf
+        readOnly: true
+      - mountPath: /var/lib/sss
+        name: sssd-state
+      - mountPath: /run/sssd
+        name: sssd-run
+      - mountPath: /var/log/sssd
+        name: sssd-log
+    securityContext:
+      fsGroup: 401
+      runAsNonRoot: false
+    volumes:
+    - name: sssd-conf
+      secret:
+        defaultMode: 384
+        items:
+        - key: sssd.conf
+          mode: 384
+          path: sssd.conf
+        secretName: site-sssd-ha-ldap-conf
+    - emptyDir: {}
+      name: sssd-state
+    - emptyDir: {}
+      name: sssd-run
+    - emptyDir: {}
+      name: sssd-log
+  slurmctld:
+    image:
+      repository: iad.ocir.io/idxzjcdglx2s/slinky
+      tag: slurmctld-pmix-sssd-nss-25.11-ubuntu24.04
+    volumeMounts:
+    - mountPath: /var/lib/sss
+      name: sssd-state
+    - mountPath: /run/sssd
+      name: sssd-run
+loginsets:
+  slinky:
+    enabled: true
+    extraSshdConfig: |
+      AuthorizedKeysCommand /usr/bin/sss_ssh_authorizedkeys
+      AuthorizedKeysCommandUser nobody
+      AuthorizedKeysFile none
+      PasswordAuthentication no
+    login:
+      volumeMounts:
+      - mountPath: /home
+        name: home
+    podSpec:
+      volumes:
+      - name: home
+        persistentVolumeClaim:
+          claimName: slurm-home
+    replicas: 1
+    service:
+      spec:
+        type: LoadBalancer
+nodesets:
+  gpu-b4:
+    enabled: true
+    extraConfMap:
+      Features:
+      - a100
+      - 40gb
+      - rdma
+      - sriov
+      Gres:
+      - gpu:a100:8
+      Weight: 1
+    logfile:
+      image:
+        repository: docker.io/library/alpine
+        tag: latest
+    metadata:
+      annotations:
+        k8s.v1.cni.cncf.io/networks: sriov-rdma-vf,sriov-rdma-vf,sriov-rdma-vf,sriov-rdma-vf,sriov-rdma-vf,sriov-rdma-vf,sriov-rdma-vf,sriov-rdma-vf,sriov-rdma-vf,sriov-rdma-vf,sriov-rdma-vf,sriov-rdma-vf,sriov-rdma-vf,sriov-rdma-vf,sriov-rdma-vf,sriov-rdma-vf
+    partition:
+      configMap:
+        Default: "YES"
+        MaxTime: UNLIMITED
+        State: UP
+      enabled: true
+    podSpec:
+      nodeSelector:
+        node.kubernetes.io/instance-type: BM.GPU4.8
+      tolerations:
+      - effect: NoSchedule
+        key: nvidia.com/gpu
+        operator: Exists
+      volumes:
+      - hostPath:
+          path: /dev/infiniband
+        name: devinf
+      - emptyDir:
+          medium: Memory
+          sizeLimit: 32Gi
+        name: shm
+      - name: home
+        persistentVolumeClaim:
+          claimName: slurm-home
+    replicas: 2
+    slurmd:
+      image:
+        repository: iad.ocir.io/idxzjcdglx2s/slinky
+        tag: slurmd-rdma-pmix-25.11-ubuntu24.04
+      resources:
+        limits:
+          nvidia.com/gpu: 8
+          nvidia.com/sriov-rdma-vf: 16
+        requests:
+          nvidia.com/gpu: 8
+          nvidia.com/sriov-rdma-vf: 16
+      volumeMounts:
+      - mountPath: /dev/infiniband
+        name: devinf
+      - mountPath: /dev/shm
+        name: shm
+      - mountPath: /home
+        name: home
+    ssh:
+      enabled: true
+    updateStrategy:
+      rollingUpdate:
+        maxUnavailable: 25%
+      type: RollingUpdate
+    useResourceLimits: false
+  slinky:
+    enabled: false
+partitions:
+  all:
+    configMap:
+      MaxTime: UNLIMITED
+      State: UP
+    enabled: true
+    nodesets:
+    - ALL
+restapi:
+  replicas: 1
+sssd:
+  secretRef:
+    key: sssd.conf
+    name: site-sssd-ha-ldap-conf
+vendor:
+  nvidia:
+    dcgm:
+      enabled: false

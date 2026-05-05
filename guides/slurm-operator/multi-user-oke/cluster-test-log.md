@@ -1342,3 +1342,190 @@ slurm-worker-gpu-b4-1                 2/2 Running
 slurm-home                            Bound fss-pv 50Gi RWX
 slurm-login-slinky                    LoadBalancer 192.9.181.77
 ```
+
+## HA OpenLDAP End-to-End Slurm Validation
+
+Date: 2026-05-05.
+
+Goal: switch the live Slurm deployment from the disposable `openldap-test`
+identity service to the HA OpenLDAP deployment in the `identity` namespace and
+re-run the full `alice` SSH, NSS, Slurm job, and accounting path.
+
+Pre-change state:
+
+```text
+identity/openldap-0 1/1 Running primary
+identity/openldap-1 1/1 Running read replica
+identity/openldap-2 1/1 Running read replica
+slurm/site-sssd-ha-ldap-conf present
+slurm/site-sssd-ldap-test-conf present
+helm release slurm revision 24, chart slurm-1.1.0
+```
+
+The first HA LDAP lookup found that `alice` still had the sample SSH key from
+the HA manifest:
+
+```text
+sshPublicKey: ssh-ed25519 AAAA_REPLACE_ME alice@example
+```
+
+Updated the live HA OpenLDAP primary with the real test key from
+`/home/ubuntu/.ssh/alice_slurm_test.pub`:
+
+```ldif
+dn: uid=alice,ou=People,dc=example,dc=org
+changetype: modify
+replace: sshPublicKey
+sshPublicKey: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHmMWbUCIHpGAIW/WIM6tKHp5g6ET52JFLTXGApEbP2J alice-slurm-test
+```
+
+Applied with:
+
+```bash
+kubectl -n identity cp /home/ubuntu/alice-ha-key.ldif openldap-0:/tmp/alice-ha-key.ldif
+kubectl -n identity exec openldap-0 -- ldapmodify -x \
+  -H ldap://openldap-primary.identity.svc.cluster.local:389 \
+  -D cn=admin,dc=example,dc=org \
+  -w adminpassword \
+  -f /tmp/alice-ha-key.ldif
+```
+
+Confirmed replication of the updated key through all HA read paths:
+
+```text
+openldap-1.openldap-headless.identity.svc.cluster.local -> alice key readable
+openldap-2.openldap-headless.identity.svc.cluster.local -> alice key readable
+openldap-read.identity.svc.cluster.local                -> alice key readable
+```
+
+Captured the live Slurm Helm values and changed only the SSSD Secret
+references:
+
+```text
+controller.podSpec.volumes[0].secret.secretName:
+  site-sssd-ldap-test-conf -> site-sssd-ha-ldap-conf
+
+sssd.secretRef.name:
+  site-sssd-ldap-test-conf -> site-sssd-ha-ldap-conf
+```
+
+The captured values preserved the current static GPU GRES config:
+
+```text
+gres.conf: Name=gpu Type=a100 File=/dev/nvidia[0-7]
+```
+
+Applied the HA SSSD values:
+
+```bash
+helm upgrade slurm oci://ghcr.io/slinkyproject/charts/slurm \
+  --version 1.1.0 \
+  -f /home/ubuntu/slurm-values-ha-openldap.yaml \
+  --namespace slurm
+```
+
+Result:
+
+```text
+slurm revision 25 deployed
+```
+
+After the rollout, all Slurm pods returned to ready:
+
+```text
+slurm-controller-0                    4/4 Running
+slurm-login-slinky-58947b5d7c-f52bk   1/1 Running
+slurm-worker-gpu-b4-0                 2/2 Running
+slurm-worker-gpu-b4-1                 2/2 Running
+```
+
+Confirmed the login, worker, and controller SSSD configs point at HA OpenLDAP:
+
+```text
+ldap_uri = ldap://openldap-0.openldap-headless.identity.svc.cluster.local:389,ldap://openldap-1.openldap-headless.identity.svc.cluster.local:389,ldap://openldap-2.openldap-headless.identity.svc.cluster.local:389
+```
+
+Login pod NSS and SSH key validation:
+
+```text
+getent passwd alice -> alice:*:10001:10001:Alice Slurm:/home/alice:/bin/bash
+id alice -> uid=10001(alice) gid=10001(alice) groups=10001(alice),11001(project-a)
+sss_ssh_authorizedkeys alice -> ssh-ed25519 ... alice-slurm-test
+grep alice: /etc/passwd -> no local entry
+```
+
+Worker and controller NSS validation:
+
+```text
+slurm-worker-gpu-b4-0 getent passwd alice -> alice:*:10001:10001:Alice Slurm:/home/alice:/bin/bash
+slurm-worker-gpu-b4-0 id alice -> uid=10001(alice) gid=10001(alice) groups=10001(alice),11001(project-a)
+slurm-controller-0 getent passwd alice -> alice:*:10001:10001:Alice Slurm:/home/alice:/bin/bash
+slurm-controller-0 id alice -> uid=10001(alice) gid=10001(alice) groups=10001(alice),11001(project-a)
+```
+
+SSH as `alice` through the login LoadBalancer succeeded:
+
+```text
+login LoadBalancer IP: 192.9.181.77
+whoami -> alice
+id -> uid=10001(alice) gid=10001(alice) groups=10001(alice),11001(project-a)
+pwd -> /home/alice
+```
+
+FSS home isolation still behaved as expected:
+
+```text
+/home       -> drwx--x--x root root
+/home/alice -> drwx------ alice alice
+/home/bob   -> drwx------ bob 10002
+ls /home/bob as alice -> Permission denied
+```
+
+Submitted a GPU job over SSH as `alice`:
+
+```bash
+sbatch --parsable --wait --account=project-a --gres=gpu:1 \
+  --output=/home/alice/ha-ldap-%j.out \
+  /home/alice/job-test.sh
+```
+
+Result:
+
+```text
+JOB=8
+gpu-b4-1
+alice
+uid=10001(alice) gid=10001(alice) groups=10001(alice),11001(project-a)
+/home/alice
+```
+
+Accounting:
+
+```text
+JobID|User|Account|State|ExitCode|AllocTRES|NodeList
+8|alice|project-a|COMPLETED|0:0|billing=1,cpu=1,gres/gpu=1,mem=2064153M,node=1|gpu-b4-1
+8.batch||project-a|COMPLETED|0:0|cpu=1,gres/gpu=1,mem=2064153M,node=1|gpu-b4-1
+8.extern||project-a|COMPLETED|0:0|billing=1,cpu=1,gres/gpu=1,mem=2064153M,node=1|gpu-b4-1
+```
+
+`scontrol show job 8` from Alice's login session resolved the user, group,
+account, and GPU allocation:
+
+```text
+UserId=alice(10001) GroupId=alice(10001)
+Account=project-a QOS=normal
+JobState=COMPLETED
+NodeList=gpu-b4-1
+StdOut=/home/alice/ha-ldap-8.out
+TresPerNode=gres/gpu:1
+```
+
+SlurmDBD association remained correct:
+
+```text
+alice|project-a||normal
+```
+
+Conclusion: HA OpenLDAP now works end to end for `alice`: LDAP/NSS resolution,
+SSH key lookup, FSS home access, Slurm job submission, GPU allocation, and
+Slurm accounting all passed.

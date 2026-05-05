@@ -41,6 +41,10 @@ accounting layer.
   PVC.
 - `overlays/values-oke-bm-gpu4-8-fss-sssd-ldap-controller-sssd.yaml`:
   concrete deployed values for LDAP-backed SSSD plus controller-side NSS.
+- `overlays/values-oke-bm-gpu4-8-fss-sssd-ha-openldap-controller-sssd.yaml`:
+  concrete deployed values for HA OpenLDAP-backed SSSD plus controller-side
+  NSS. This preserves the live static GPU GRES configuration and switches the
+  SSSD Secret references to `site-sssd-ha-ldap-conf`.
 - `overlays/values-oke-bm-gpu4-8-fss-sssd-ldap-controller-sssd-autodetect.yaml`:
   non-static `AutoDetect=nvidia` reproduction variant. The live BM.GPU4.8 test
   rejected this path; the next autodetect test should use `AutoDetect=nvml`
@@ -70,11 +74,16 @@ whose output lands in Alice's home directory.
 Both identity paths have been tested:
 
 - no-LDAP wrapper for a small-cluster fallback;
-- LDAP-backed SSSD with `alice` resolved from LDAP in login and worker pods.
+- LDAP-backed SSSD with `alice` resolved from LDAP in login and worker pods;
+- HA OpenLDAP-backed SSSD with `alice` resolved in login, worker, and
+  controller pods, plus SSH, FSS home isolation, Slurm job submission, GPU
+  allocation, and accounting.
 
 The in-cluster HA OpenLDAP option has also been deployed and validated in the
 live OKE cluster in the `identity` namespace. The test confirmed primary writes,
-read replicas, read-only replica behavior, and replica restart recovery.
+read replicas, read-only replica behavior, replica restart recovery, and the
+full `alice` Slurm workflow after switching SSSD to
+`site-sssd-ha-ldap-conf`.
 
 The custom controller image needed for controller-side NSS resolution has also
 been built, pushed, and deployed:
@@ -83,7 +92,7 @@ been built, pushed, and deployed:
 iad.ocir.io/idxzjcdglx2s/slinky:slurmctld-pmix-sssd-nss-25.11-ubuntu24.04
 ```
 
-The live cluster is on Helm release revision `8`. Controller-side lookups
+The live cluster is on Helm release revision `25`. Controller-side lookups
 (`getent passwd alice`, `id alice`, and `scontrol show job`) now resolve
 `alice(10001)`.
 

@@ -191,6 +191,20 @@ Live GPU nodes were verified as:
 
 ## Next Steps
 
+Current identity state as of 2026-05-05:
+
+```text
+Slurm Helm release: revision 25
+SSSD Secret: site-sssd-ha-ldap-conf
+LDAP backend: identity/openldap-0 primary, identity/openldap-1/2 read replicas
+Latest HA OpenLDAP end-to-end job: 8
+8|alice|project-a|COMPLETED|0:0|billing=1,cpu=1,gres/gpu=1,mem=2064153M,node=1|gpu-b4-1
+```
+
+The HA OpenLDAP `alice` entry was updated in the live cluster with the real
+`/home/ubuntu/.ssh/alice_slurm_test.pub` key. The manifest still contains a
+placeholder key; replace it or patch LDAP before repeating SSH tests.
+
 1. Re-check the running state:
 
 ```bash
@@ -212,27 +226,26 @@ Current login LoadBalancer IP:
 192.9.181.77
 ```
 
-3. Re-run the SSSD GPU accounting test if needed:
+3. Re-run the HA OpenLDAP SSSD GPU accounting test if needed:
 
 ```bash
 ssh -i /home/ubuntu/.ssh/alice_slurm_test alice@192.9.181.77 \
-  'sbatch --parsable --wait --account=project-a --gres=gpu:1 \
-    --output=/home/alice/sssd-gpu-%j.out \
-    --wrap="hostname; whoami; id; getent passwd alice; getent group project-a; nvidia-smi -L"'
+  sbatch --parsable --wait --account=project-a --gres=gpu:1 \
+    --output=/home/alice/ha-ldap-%j.out \
+    /home/alice/job-test.sh
 ```
 
-The latest successful controller-side SSSD GPU test was job `6`:
+The latest successful HA OpenLDAP-backed SSSD GPU test was job `8`:
 
 ```text
-6|alice|project-a|COMPLETED|0:0|billing=2,cpu=2,gres/gpu=1,mem=2064153M,node=1|gpu-b4-1
+8|alice|project-a|COMPLETED|0:0|billing=1,cpu=1,gres/gpu=1,mem=2064153M,node=1|gpu-b4-1
 ```
 
 4. Next functional work should focus on production identity:
 
-- replace the disposable OpenLDAP test source with production LDAP, FreeIPA, or
-  Active Directory;
+- harden the in-cluster HA OpenLDAP deployment or replace it with production
+  FreeIPA, Active Directory, or managed LDAP;
 - use LDAPS or StartTLS with CA validation;
-- use a real SSH-key LDAP attribute instead of the test `description` mapping;
 - automate Slurm account/user association sync from identity groups.
 
 5. Next GPU autodetect work:
@@ -251,8 +264,9 @@ The latest successful controller-side SSSD GPU test was job `6`:
 - The no-LDAP wrapper is for testing. It creates `alice` in login and slurmd
   containers. Production should use SSSD backed by LDAP, FreeIPA, or Active
   Directory for consistent identity on every Slurm component.
-- The active release now uses SSSD/LDAP, not the wrapper. `scontrol` from both
-  Alice's login session and the controller resolves `alice(10001)`.
+- The active release now uses HA OpenLDAP-backed SSSD, not the wrapper or the
+  disposable `openldap-test` service. `scontrol` from Alice's login session
+  resolves `alice(10001)`.
 - Do not use static `Sockets`, `CoresPerSocket`, or `ThreadsPerCore` fields as
   the GPU AutoDetect workaround. That path was tested and rejected.
 - Worker SSSD is currently enabled through `nodesets.gpu-b4.ssh.enabled=true`;
