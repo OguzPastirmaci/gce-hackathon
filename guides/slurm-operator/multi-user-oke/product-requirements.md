@@ -13,8 +13,9 @@ clusters.
 Users should SSH to a Slurm login endpoint as themselves, land in their own FSS
 home directory, submit jobs with normal Slurm commands, and have Slurm and
 SlurmDBD accounting record the real submitting user. The implementation must
-preserve the existing GPU and RDMA architecture on OKE: `BM.GPU4.8` worker
-nodes, SR-IOV VFs, and no `hostNetwork`.
+preserve shape-specific GPU and RDMA architecture on OKE. The validated shapes
+are `BM.GPU4.8` with SR-IOV/VF pod networking and `BM.GPU.GB200.4` with the
+currently tested `hostNetwork` worker path.
 
 The preferred production identity model is LDAP, FreeIPA, or Active Directory
 through SSSD. If LDAP must run inside Kubernetes, the recommended production
@@ -51,8 +52,9 @@ The main gaps are:
   promotion runbooks.
 - Mount OCI FSS at `/home` in login and compute pods.
 - Enforce home directory isolation with POSIX permissions.
-- Preserve OKE GPU/RDMA requirements: `BM.GPU4.8`, SR-IOV VFs, no
-  `hostNetwork`.
+- Preserve OKE GPU/RDMA requirements by shape: `BM.GPU4.8` uses SR-IOV/VF pod
+  networking with no `hostNetwork`; `BM.GPU.GB200.4` currently uses the tested
+  `hostNetwork` path, arm64 worker image, and worker sshd on port `2222`.
 - Enable SlurmDBD accounting and account/user associations.
 - Provide clear onboarding, offboarding, key rotation, and account-sync
   workflows.
@@ -107,7 +109,8 @@ The MVP is a production-ready multi-user path with:
   controller-side Slurm commands;
 - SlurmDBD accounting with user/account associations;
 - GPU jobs that record the real user and account;
-- no `hostNetwork`; SR-IOV VFs remain active.
+- shape-specific worker values that preserve the tested network mode and GPU
+  autodetect behavior for each supported OKE GPU shape.
 
 ### Post-MVP
 
@@ -121,28 +124,51 @@ The MVP is a production-ready multi-user path with:
 
 ## Current Validated State
 
-The current OKE test cluster validates the following:
+The current OKE validation covers two shape-specific tracks.
+
+`BM.GPU4.8` validation:
 
 - two GPU workers are `BM.GPU4.8`;
 - each worker exposes `nvidia.com/gpu: 8`;
 - each worker exposes `nvidia.com/sriov-rdma-vf: 16`;
 - worker pods use SR-IOV VF attachments and do not use `hostNetwork`;
+- `AutoDetect=nvml` works when dynamic nodes register with NUMA-shaped
+  topology: `CPUs=64`, `SocketsPerBoard=8`, `CoresPerSocket=8`,
+  `ThreadsPerCore=1`, and `Parameters=numa_node_as_socket`;
+- NCCL PMIx validation completed with 8 GPUs and 16 VFs per node.
+
+`BM.GPU.GB200.4` validation:
+
+- one GPU worker is `BM.GPU.GB200.4` and `arm64`;
+- the tested worker path uses `hostNetwork`;
+- worker sshd listens on port `2222` to avoid conflict with the host sshd;
+- worker image is a multi-platform NVML-enabled image:
+  `iad.ocir.io/idxzjcdglx2s/slinky:slurmd-nvml-core-25.11.5-ubuntu24.04`;
+- `AutoDetect=nvml` detects 4 GB200 GPUs and Slurm registers
+  `Gres=gpu:4(S:0-1)`;
+- Slinky dynamic node registration uses the Kubernetes node name as the Slurm
+  node name for the hostNetwork path.
+
+Shared identity, home, and accounting validation:
+
 - existing FSS PV `fss-pv` is bound to PVC `slurm-home`;
 - `/home` is mounted in login and worker pods;
 - `/home` mode `711` prevents directory listing by normal users;
 - `/home/alice` mode `700` is owned by UID/GID `10001:10001`;
-- `/home/bob` mode `700` is not readable by Alice;
+- `/home/bob` mode `700` is not readable by Alice where that test user exists;
 - MariaDB and SlurmDBD accounting are running;
 - `alice` is associated with Slurm account `project-a`;
 - no-LDAP wrapper path was tested successfully;
 - LDAP-backed SSSD path was tested successfully with disposable OpenLDAP;
 - HA OpenLDAP-backed SSSD path was tested successfully end to end with `alice`;
+- cert-manager-issued OpenLDAP CA and server certificates were validated in the
+  GB200 HA OpenLDAP path;
 - `alice` resolves through SSSD in login and worker pods without a local
   `/etc/passwd` entry;
 - `alice` resolves through SSSD/NSS in the controller pod using the custom
   controller image and root SSSD sidecar;
 - SSH as `alice` works through `sss_ssh_authorizedkeys`;
-- GPU jobs submitted as `alice/project-a` allocate `gres/gpu=1`;
+- GPU jobs submitted as `alice/project-a` allocate `gres/gpu`;
 - `sacct` records the top-level Slurm job as `alice/project-a`.
 
 Known limitation:
@@ -151,9 +177,10 @@ Known limitation:
   and an explicit SSSD sidecar in the values overlay. This is validated, but
   still needs first-class chart/image productization before it is a polished
   default.
-- cert-manager is installed in the test cluster, but the HA OpenLDAP validation
-  still uses plaintext LDAP. LDAP CA issuance, server certificates, and SSSD CA
-  trust remain production hardening work.
+- the GB200 HA OpenLDAP test validates LDAPS with cert-manager-generated
+  certificates and SSSD CA trust. Production still needs certificate rotation,
+  backup/restore, and primary promotion runbooks validated against the chosen
+  production LDAP chart or manifest set.
 
 ## User Experience Requirements
 
@@ -283,10 +310,12 @@ Current status:
 
 - cert-manager is available in the OKE test cluster for Kubernetes certificate
   automation.
-- The validated HA OpenLDAP test currently uses `ldap://` endpoints and
-  `ldap_id_use_start_tls = false`.
-- No LDAP `Issuer`, `ClusterIssuer`, or `Certificate` resources are part of the
-  HA OpenLDAP manifests yet.
+- The GB200 HA OpenLDAP validation uses cert-manager `Issuer` and
+  `Certificate` resources for an OpenLDAP CA and server certificate.
+- OpenLDAP pods mount the cert-manager TLS Secret and serve LDAPS on port `636`.
+- SSSD uses `ldaps://openldap-readonly.identity.svc.cluster.local:636` and
+  `ldaps://openldap.identity.svc.cluster.local:636` with
+  `ldap_tls_reqcert = demand` and `ldap_tls_cacert = /etc/sssd/ca/ca.crt`.
 
 P0 production requirements:
 
@@ -375,11 +404,18 @@ P1 requirements:
 
 P0 requirements:
 
-- Worker NodeSet uses `node.kubernetes.io/instance-type: BM.GPU4.8`.
-- Worker pods request and limit `nvidia.com/gpu: 8`.
-- Worker pods request and limit `nvidia.com/sriov-rdma-vf: 16`.
-- Worker pods use the `sriov-rdma-vf` NetworkAttachmentDefinition.
-- Worker pods do not use `hostNetwork`.
+- Worker NodeSet values are explicitly shape-specific.
+- `BM.GPU4.8` workers use `node.kubernetes.io/instance-type: BM.GPU4.8`.
+- `BM.GPU4.8` worker pods request and limit `nvidia.com/gpu: 8`.
+- `BM.GPU4.8` worker pods request and limit `nvidia.com/sriov-rdma-vf: 16`.
+- `BM.GPU4.8` worker pods use the `sriov-rdma-vf` NetworkAttachmentDefinition
+  and do not use `hostNetwork`.
+- `BM.GPU.GB200.4` workers use
+  `node.kubernetes.io/instance-type: BM.GPU.GB200.4`.
+- `BM.GPU.GB200.4` worker pods request and limit `nvidia.com/gpu: 4`.
+- `BM.GPU.GB200.4` worker images include `linux/arm64` support.
+- `BM.GPU.GB200.4` uses the currently tested `hostNetwork` path and moves the
+  worker container sshd to port `2222`.
 - `/dev/infiniband` is preserved.
 - `/dev/shm` is preserved.
 - FSS PVC `slurm-home` is mounted at `/home`.
@@ -402,9 +438,10 @@ P1 requirements:
 - On OKE GPU/RDMA clusters, topology should represent real placement domains
   such as RDMA leaf, network block, or HPC island when those labels are
   available.
-- Topology support must not require `hostNetwork`, must not remove SR-IOV VFs,
-  and must not rely on static socket/core/thread hardware topology as a GPU
-  autodetect workaround.
+- Topology support must preserve each shape's tested network mode. It must not
+  remove SR-IOV VFs from the `BM.GPU4.8` path, and it must not require static
+  socket/core/thread values except where they are explicitly part of a validated
+  shape-specific GPU autodetect configuration.
 
 Related implementation docs:
 
@@ -587,9 +624,27 @@ Delivered:
 - controller-side SSSD/NSS resolution through the custom controller image and
   root SSSD sidecar;
 - GPU job with accounting;
-- SR-IOV VFs preserved.
+- SR-IOV VFs preserved on the `BM.GPU4.8` path.
+
+### Milestone 1.5: Shape-Specific GPU Validation
+
+Status: complete for the tested shapes.
+
+Delivered:
+
+- `BM.GPU4.8` SR-IOV/VF path with `AutoDetect=nvml` and NUMA-shaped dynamic
+  node topology;
+- `BM.GPU4.8` NCCL PMIx validation with 8 GPUs and 16 VFs per node;
+- `BM.GPU.GB200.4` hostNetwork path with `AutoDetect=nvml` only;
+- `BM.GPU.GB200.4` worker sshd on port `2222`;
+- multi-platform GB200 worker image with NVML and GRES GPU plugin support.
 
 ### Milestone 2: Production Identity Integration
+
+Status: partially validated. The in-cluster HA OpenLDAP path, LDAPS, SSSD CA
+trust, FSS homes, SlurmDBD accounting, and Alice end-to-end login/job flow were
+validated on the temporary GB200 cluster. Production backup/restore, certificate
+rotation, and replica promotion still need formal validation.
 
 Deliver:
 
@@ -635,7 +690,8 @@ Validated implementation:
 
 ### Milestone 3.5: End-to-End LDAP/SSSD Runbook
 
-Status: documented.
+Status: documented and validated on the `BM.GPU.GB200.4` HA OpenLDAP test
+cluster.
 
 Deliver:
 
@@ -658,6 +714,8 @@ Related LDAP option docs:
 ```text
 /Users/opastirm/Documents/Repos/slurm-operator/docs/usage/ldap-sssd-disposable-test.md
 /Users/opastirm/Documents/Repos/slurm-operator/docs/usage/ldap-sssd-ha-openldap.md
+/Users/opastirm/Documents/Repos/slurm-operator/docs/usage/oke-slurm-shape-runbooks.md
+/Users/opastirm/Documents/Repos/slurm-operator/docs/usage/oke-gb200-final-cluster-capture.md
 ```
 
 Guide repo assets:
@@ -681,6 +739,12 @@ Deliver:
 Risk: Helm list replacement drops RDMA, VF, or FSS mounts.  
 Mitigation: maintain merged concrete values files and validate rendered values
 before upgrade.
+
+Risk: values or assumptions leak between GPU shapes.
+Mitigation: keep shape-specific runbooks and values files separate. Do not copy
+GB200 `hostNetwork` and `Port 2222` settings into the `BM.GPU4.8` SR-IOV path,
+and do not treat the `BM.GPU4.8` NUMA topology workaround as required for the
+GB200 path.
 
 Risk: UID/GID drift causes wrong FSS ownership.  
 Mitigation: use LDAP, FreeIPA, or AD as the authoritative UID/GID source and
@@ -707,12 +771,18 @@ Risk: FSS NFS permissions do not protect against root clients.
 Mitigation: do not give users sudo in login pods, avoid user root jobs, restrict
 FSS export access, and use root-squash or stronger NFS controls where required.
 
+Risk: arm64 GPU workers cannot pull or run amd64-only custom images.
+Mitigation: publish Slurm worker images as multi-platform images, at minimum
+`linux/amd64` and `linux/arm64`, and validate manifest lists before deployment.
+
 ## Open Questions
 
 - Which production identity source will be used: LDAP, FreeIPA, or AD?
-- If LDAP runs inside Kubernetes, which OpenLDAP image, storage class,
-  certificate issuer, backup target, and primary promotion process will be
-  used?
+- Which GPU shapes are in the first production support matrix:
+  `BM.GPU4.8`, `BM.GPU.GB200.4`, or both?
+- If LDAP runs inside Kubernetes, the GB200 test used `jpgouin/openldap:2.6.9-fix`,
+  `oci-bv`, and a cert-manager namespace `Issuer`; what production backup
+  target, restore procedure, and primary promotion process will be used?
 - Which LDAP attribute will store SSH public keys?
 - What is the required group-to-account mapping model?
 - Should controller-side username resolution be a hard launch requirement?
@@ -733,7 +803,10 @@ FSS export access, and use root-squash or stronger NFS controls where required.
 - `squeue`, `scontrol`, and `sacct` show the real user from the login pod.
 - `sacct` records the expected Slurm account.
 - Jobs without valid associations are rejected when enforcement is enabled.
-- Worker pods use `BM.GPU4.8`, GPUs, SR-IOV VFs, and no `hostNetwork`.
+- Worker pods follow the selected shape runbook:
+  - `BM.GPU4.8`: SR-IOV VFs, 8 GPUs per node, no `hostNetwork`;
+  - `BM.GPU.GB200.4`: 4 GPUs per node, `hostNetwork`, arm64-capable worker
+    image, worker sshd on port `2222`.
 - Production identity uses LDAPS or StartTLS.
 - If OpenLDAP runs inside Kubernetes, cert-manager issues LDAP server
   certificates, SSSD trusts the LDAP CA bundle, and certificate rotation has
