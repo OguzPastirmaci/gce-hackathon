@@ -1,0 +1,224 @@
+# Concrete OKE test values for validating LDAP-backed SSSD identity with
+# controller-side NSS resolution.
+#
+# This preserves the working BM.GPU4.8, SR-IOV VF, FSS, and accounting setup
+# from `values-oke-bm-gpu4-8-fss-pvc.yaml`, but removes the local-user wrapper.
+# Users are resolved from `site-sssd-ldap-test-conf`, backed by the disposable
+# `openldap-test` service in `manifests/openldap-test-identity.yaml`.
+#
+# It also deploys the custom controller image with SSSD/NSS client support and
+# runs SSSD as a root sidecar in the controller pod.
+
+sssd:
+  secretRef:
+    name: site-sssd-ldap-test-conf
+    key: sssd.conf
+
+controller:
+  slurmctld:
+    image:
+      repository: iad.ocir.io/idxzjcdglx2s/slinky
+      tag: slurmctld-pmix-sssd-nss-25.11-ubuntu24.04
+    volumeMounts:
+      - name: sssd-state
+        mountPath: /var/lib/sss
+      - name: sssd-run
+        mountPath: /run/sssd
+  persistence:
+    enabled: true
+    storageClassName: oci-bv
+    resources:
+      requests:
+        storage: 10Gi
+  extraConfMap:
+    GresTypes: "gpu"
+    PropagateResourceLimitsExcept: MEMLOCK
+    AccountingStorageEnforce: "associations,limits,qos"
+  podSpec:
+    securityContext:
+      runAsNonRoot: false
+      fsGroup: 401
+    volumes:
+      - name: sssd-conf
+        secret:
+          secretName: site-sssd-ldap-test-conf
+          defaultMode: 0600
+          items:
+            - key: sssd.conf
+              path: sssd.conf
+              mode: 0600
+      - name: sssd-state
+        emptyDir: {}
+      - name: sssd-run
+        emptyDir: {}
+      - name: sssd-log
+        emptyDir: {}
+    containers:
+      - name: sssd
+        image: ghcr.io/slinkyproject/login:25.11-ubuntu24.04
+        imagePullPolicy: IfNotPresent
+        command:
+          - /bin/bash
+          - -lc
+        args:
+          - |
+            set -euo pipefail
+            install -d -m 0700 /etc/sssd
+            install -o root -g root -m 0600 /etc/sssd-secret/sssd.conf /etc/sssd/sssd.conf
+            install -d -m 0755 /var/lib/sss
+            install -d -m 0700 /var/lib/sss/db /var/lib/sss/keytabs /var/lib/sss/secrets
+            install -d -m 0751 /var/lib/sss/deskprofile
+            install -d -m 0755 /var/lib/sss/gpo_cache /var/lib/sss/pipes /var/lib/sss/pubconf /var/lib/sss/pubconf/krb5.include.d /run/sssd
+            install -d -m 0750 /var/lib/sss/pipes/private /var/log/sssd
+            install -d -m 0775 /var/lib/sss/mc
+            chown -R root:root /var/lib/sss /run/sssd /var/log/sssd
+            chmod 0755 /var/lib/sss /var/lib/sss/gpo_cache /var/lib/sss/pipes /var/lib/sss/pubconf /var/lib/sss/pubconf/krb5.include.d /run/sssd
+            chmod 0700 /var/lib/sss/db /var/lib/sss/keytabs /var/lib/sss/secrets
+            chmod 0751 /var/lib/sss/deskprofile
+            chmod 0750 /var/lib/sss/pipes/private /var/log/sssd
+            chmod 0775 /var/lib/sss/mc
+            rm -f /var/lib/sss/pipes/nss /var/lib/sss/pipes/pam /var/lib/sss/pipes/ssh
+            rm -f /var/lib/sss/pipes/private/* /run/sssd.pid /run/sssd/*.pid
+            exec /usr/sbin/sssd -i
+        securityContext:
+          runAsNonRoot: false
+          runAsUser: 0
+          runAsGroup: 0
+          allowPrivilegeEscalation: false
+        volumeMounts:
+          - name: sssd-conf
+            mountPath: /etc/sssd-secret
+            readOnly: true
+          - name: sssd-state
+            mountPath: /var/lib/sss
+          - name: sssd-run
+            mountPath: /run/sssd
+          - name: sssd-log
+            mountPath: /var/log/sssd
+
+configFiles:
+  gres.conf: |
+    Name=gpu Type=a100 File=/dev/nvidia[0-7]
+  cgroup.conf: |
+    CgroupPlugin=cgroup/v2
+    IgnoreSystemd=yes
+    ConstrainCores=yes
+    ConstrainRAMSpace=no
+    ConstrainDevices=yes
+    ConstrainSwapSpace=no
+
+restapi:
+  replicas: 1
+
+nodesets:
+  slinky:
+    enabled: false
+  gpu-b4:
+    enabled: true
+    replicas: 2
+    useResourceLimits: false
+    ssh:
+      enabled: true
+    slurmd:
+      image:
+        repository: iad.ocir.io/idxzjcdglx2s/slinky
+        tag: slurmd-rdma-pmix-25.11-ubuntu24.04
+      resources:
+        limits:
+          nvidia.com/gpu: 8
+          nvidia.com/sriov-rdma-vf: 16
+        requests:
+          nvidia.com/gpu: 8
+          nvidia.com/sriov-rdma-vf: 16
+      volumeMounts:
+        - name: devinf
+          mountPath: /dev/infiniband
+        - name: shm
+          mountPath: /dev/shm
+        - name: home
+          mountPath: /home
+    logfile:
+      image:
+        repository: docker.io/library/alpine
+        tag: latest
+    extraConfMap:
+      Gres: ["gpu:a100:8"]
+      Features: ["a100", "40gb", "rdma", "sriov"]
+      Weight: 1
+    partition:
+      enabled: true
+      configMap:
+        State: UP
+        Default: "YES"
+        MaxTime: UNLIMITED
+    updateStrategy:
+      type: RollingUpdate
+      rollingUpdate:
+        maxUnavailable: 25%
+    metadata:
+      annotations:
+        k8s.v1.cni.cncf.io/networks: sriov-rdma-vf,sriov-rdma-vf,sriov-rdma-vf,sriov-rdma-vf,sriov-rdma-vf,sriov-rdma-vf,sriov-rdma-vf,sriov-rdma-vf,sriov-rdma-vf,sriov-rdma-vf,sriov-rdma-vf,sriov-rdma-vf,sriov-rdma-vf,sriov-rdma-vf,sriov-rdma-vf,sriov-rdma-vf
+    podSpec:
+      nodeSelector:
+        node.kubernetes.io/instance-type: BM.GPU4.8
+      tolerations:
+        - key: nvidia.com/gpu
+          effect: NoSchedule
+          operator: Exists
+      volumes:
+        - name: devinf
+          hostPath:
+            path: /dev/infiniband
+        - name: shm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 32Gi
+        - name: home
+          persistentVolumeClaim:
+            claimName: slurm-home
+
+partitions:
+  all:
+    enabled: true
+    nodesets: [ALL]
+    configMap:
+      State: UP
+      MaxTime: UNLIMITED
+
+loginsets:
+  slinky:
+    enabled: true
+    replicas: 1
+    extraSshdConfig: |
+      AuthorizedKeysCommand /usr/bin/sss_ssh_authorizedkeys
+      AuthorizedKeysCommandUser nobody
+      AuthorizedKeysFile none
+      PasswordAuthentication no
+    login:
+      volumeMounts:
+        - name: home
+          mountPath: /home
+    podSpec:
+      volumes:
+        - name: home
+          persistentVolumeClaim:
+            claimName: slurm-home
+    service:
+      spec:
+        type: LoadBalancer
+
+accounting:
+  enabled: true
+  storageConfig:
+    host: mariadb
+    port: 3306
+    database: slurm_acct_db
+    username: slurm
+    passwordKeyRef:
+      name: mariadb-password
+      key: password
+
+vendor:
+  nvidia:
+    dcgm:
+      enabled: false

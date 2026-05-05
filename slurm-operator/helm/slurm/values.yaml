@@ -1,0 +1,836 @@
+---
+
+# -- Overrides the name of the release.
+nameOverride: null
+
+# -- Overrides the full name of the release.
+fullnameOverride: null
+
+# -- Overrides the namespace of the release.
+namespaceOverride: null
+
+# -- Toggle ASCII art in Helm installation notes.
+asciiArt: true
+
+# -- Set the secrets for image pull.
+# Ref: https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/
+imagePullSecrets: []
+  # - name: regcred
+
+# -- Set the image pull policy.
+# Ref: https://kubernetes.io/docs/concepts/containers/images/#image-pull-policy
+imagePullPolicy: IfNotPresent
+
+# Configure the priority class used by all Slurm components.
+# Ref: https://kubernetes.io/docs/concepts/scheduling-eviction/pod-priority-preemption/#priorityclass
+priorityClass:
+  # -- Enables use of the named priorityClass to be applied to all Slurm pods.
+  enabled: false
+  # -- The priority class will be created when true.
+  create: false
+  # -- The name of the priority class to (create and) use.
+  name: slurm-system-critical
+  # -- The description upon creation.
+  description: null
+  # -- The priority value upon creation.
+  value: 1000000000
+  # -- The preemption policy upon creation. One of: `PreemptLowerPriority`; `Never`.
+  preemptionPolicy: PreemptLowerPriority
+
+# -- Slurm shared authentication key.
+# Ref: https://slurm.schedmd.com/authentication.html#slurm
+slurmKey:
+  # -- The secret will be created when true.
+  create: true
+  # -- Annotations to add to the secret upon creation.
+  annotations: {}
+    # helm.sh/resource-policy: keep
+  # -- (secretKeyRef) Reference to the secret.
+  secretRef: {}
+    # name: slurm-auth-slurm
+    # key: slurm.key
+
+# -- Slurm cluster JWT authentication key.
+# Ref: https://slurm.schedmd.com/authentication.html#jwt
+jwtKey:
+  # -- The secret will be created when true.
+  create: true
+  # -- Annotations to add to the secret upon creation.
+  annotations: {}
+    # helm.sh/resource-policy: keep
+  # -- (secretKeyRef) Reference to the secret.
+  secretRef: {}
+    # name: slurm-auth-jwt
+    # key: jwt.key
+
+# -- Slurm cluster JWKS authentication keys.
+# Ref: https://slurm.schedmd.com/jwt.html#external_auth
+jwksKeys:
+  # -- Enable use of JWKS file.
+  enabled: false
+  # -- (configMapKeySelector) Reference to the configMap.
+  configMapRef: {}
+    # name: slurm-auth-jwks
+    # key: jwks.json
+
+# -- The cluster name, which uniquely identifies the Slurm cluster.
+# If empty, one will be derived from the Controller CR object.
+# Ref: https://slurm.schedmd.com/slurm.conf.html#OPT_ClusterName
+clusterName: null
+
+# -- (map[string]string) Extra Slurm config files to be mounted to `/etc/slurm`.
+# Ref: https://slurm.schedmd.com/man_index.html#configuration_files
+configFiles: {}
+  # Ref: https://slurm.schedmd.com/cgroup.conf.html
+  # cgroup.conf: |
+  #   CgroupPlugin=cgroup/v2
+  #   IgnoreSystemd=yes
+  #   ConstrainCores=yes
+  #   ConstrainRAMSpace=yes
+  #   ConstrainDevices=yes
+  #   ConstrainSwapSpace=yes
+  # Ref: https://slurm.schedmd.com/gres.conf.html
+  # gres.conf: |
+  #   AutoDetect=nvidia
+  # Ref: https://slurm.schedmd.com/mpi.conf.html
+  # mpi.conf: |
+  #   PMIxDebug=0
+  # Ref: https://slurm.schedmd.com/namespace.yaml.html
+  # namespace.yaml: |
+  #  ---
+  #  defaults:
+  #    auto_base_path: true
+  # Ref: https://slurm.schedmd.com/oci.conf.html
+  # oci.conf: |
+  #   FileDebug=debug2
+  # Ref: https://slurm.schedmd.com/spank.html#SECTION_CONFIGURATION
+  # plugstack.conf: |
+  #   include /usr/share/pyxis/*
+  # Ref: https://slurm.schedmd.com/topology.yaml.html
+  # topology.yaml: |
+  #   ---
+
+# -- (map[string]string) The Slurm PrologSlurmctld scripts run on slurmctld at job allocation.
+# The map key represents the filename; the map value represents the script contents.
+# WARNING: The script must include a shebang (!) so it can be executed correctly by Slurm.
+# Ref: https://slurm.schedmd.com/slurm.conf.html#OPT_PrologSlurmctld
+# Ref: https://slurm.schedmd.com/prolog_epilog.html
+# Ref: https://en.wikipedia.org/wiki/Shebang_(Unix)
+prologSlurmctldScripts: {}
+  # 00-empty.sh: |
+  #   #!/usr/bin/env bash
+  #   set -euo pipefail
+  #   exit 0
+
+# -- (map[string]string) The Slurm EpilogSlurmctld scripts ran on slurmctld at job completion.
+# The map key represents the filename; the map value represents the script contents.
+# WARNING: The script must include a shebang (!) so it can be executed correctly by Slurm.
+# Ref: https://slurm.schedmd.com/slurm.conf.html#OPT_EpilogSlurmctld
+# Ref: https://slurm.schedmd.com/prolog_epilog.html
+# Ref: https://en.wikipedia.org/wiki/Shebang_(Unix)
+epilogSlurmctldScripts: {}
+  # 00-empty.sh: |
+  #   #!/usr/bin/env bash
+  #   set -euo pipefail
+  #   exit 0
+
+# -- (map[string]string) The Slurm Prolog scripts ran on all NodeSets.
+# The map key represents the filename; the map value represents the script contents.
+# WARNING: The script must include a shebang (!) so it can be executed correctly by Slurm.
+# Ref: https://slurm.schedmd.com/slurm.conf.html#OPT_Prolog
+# Ref: https://slurm.schedmd.com/prolog_epilog.html
+# Ref: https://en.wikipedia.org/wiki/Shebang_(Unix)
+prologScripts: {}
+  # 00-empty.sh: |
+  #   #!/usr/bin/env bash
+  #   set -euo pipefail
+  #   exit 0
+
+# -- (map[string]string) The Slurm Epilog scripts ran on all NodeSets.
+# The map key represents the filename; the map value represents the script contents.
+# WARNING: The script must include a shebang (!) so it can be executed correctly by Slurm.
+# Ref: https://slurm.schedmd.com/slurm.conf.html#OPT_Epilog
+# Ref: https://slurm.schedmd.com/prolog_epilog.html
+# Ref: https://en.wikipedia.org/wiki/Shebang_(Unix)
+epilogScripts: {}
+  # 00-empty.sh: |
+  #   #!/usr/bin/env bash
+  #   set -euo pipefail
+  #   exit 0
+
+# Slurm controller (slurmctld) configuration.
+controller:
+  # -- Configures this component as external (not in Kubernetes).
+  external: false
+  # Details required to communicate with an external slurmdbd.
+  # When `external=true`, `externalConfig` is used and all other fields are ignored.
+  externalConfig:
+    # -- The slurmdbd host address or IP.
+    host: slurmctld.example.com
+    # -- The slurmctld port. Default is 6817.
+    port: null
+  # slurmctld container configurations.
+  slurmctld:
+    # -- (string \| object) The image to use.
+    # Ref: https://kubernetes.io/docs/concepts/containers/images/#image-names
+    image:
+      repository: ghcr.io/slinkyproject/slurmctld
+      tag: 25.11-ubuntu24.04
+    # -- Arguments passed to the image.
+    # Ref: https://slurm.schedmd.com/slurmctld.html#SECTION_OPTIONS
+    args: []
+      # - -vvv
+    # -- The container resource limits and requests.
+    # Ref: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#resource-requests-and-limits-of-pod-and-container
+    resources: {}
+      # requests:
+      #   cpu: 1
+      #   memory: 1Gi
+  # -- Indicates how reconfigure is handled when Slurm configuration changes.
+  # When true, the reconfigure sidecar will do reconfigure inplace.
+  # When false, the pod will be recreated and reconfigure done only on startup.
+  inplaceReconfigure: false
+  # Reconfigure container configurations.
+  reconfigure:
+    # -- (string \| object) The image to use.
+    # Ref: https://kubernetes.io/docs/concepts/containers/images/#image-names
+    image:
+      repository: ghcr.io/slinkyproject/slurmctld
+      tag: 25.11-ubuntu24.04
+    # -- The container resource limits and requests.
+    # Ref: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#resource-requests-and-limits-of-pod-and-container
+    resources: {}
+      # requests:
+      #   cpu: 500m
+      #   memory: 128Mi
+  # LogFile sidecar configurations.
+  logfile:
+    # -- (string \| object) The image to use.
+    # Ref: https://kubernetes.io/docs/concepts/containers/images/#image-names
+    image:
+      repository: docker.io/library/alpine
+      tag: latest
+    # -- The container resource limits and requests.
+    # Ref: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#resource-requests-and-limits-of-pod-and-container
+    resources: {}
+      # requests:
+      #   cpu: 500m
+      #   memory: 128Mi
+  # Enable persistence using Persistent Volume Claims.
+  # Ref: https://kubernetes.io/docs/concepts/storage/persistent-volumes/
+  persistence:
+    # -- Enable persistence for slurmctld, retain save-state across recreations.
+    enabled: true
+    # -- Name of the existing `PersistentVolumeClaim` to use instead of creating one.
+    # If this is not empty, then certain other fields will be ignored.
+    existingClaim: ""
+    # -- (string) The name of the `StorageClass` for the created `PersistentVolumeClaim`.
+    # If set to "-" or "", it disables dynamic storage provisioning.
+    # If undefined or set to null, your default storage provisioner is used.
+    # Ref: https://kubernetes.io/docs/concepts/storage/storage-classes/
+    storageClassName: null
+    # Create the `PersistentVolumeClaim` with the desired access modes.
+    # Ref: https://kubernetes.io/docs/concepts/storage/persistent-volumes#access-modes
+    accessModes:
+      - ReadWriteOnce
+    # -- The minimum resources for the `PersistentVolumeClaim` to be created with.
+    # Ref: https://kubernetes.io/docs/concepts/storage/persistent-volumes#resources
+    resources:
+      requests:
+        storage: 4Gi
+  # -- (string) Raw extra Slurm configuration lines appended to `slurm.conf`.
+  # Ref: https://slurm.schedmd.com/slurm.conf.html
+  extraConf: null
+  # -- (map[string]string \| map[string][]string) Extra Slurm configuration lines appended to `slurm.conf`.
+  # If `extraConf` is not empty, it takes precedence.
+  # Ref: https://slurm.schedmd.com/slurm.conf.html
+  extraConfMap: {}
+    # DebugFlags: []
+    # MinJobAge: 2
+    # SchedulerParameters: []
+    # SlurmctldDebug: debug2
+    # SlurmSchedLogLevel: 1
+    # SlurmdDebug: debug2
+  # -- Labels and annotations.
+  # Ref: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
+  metadata: {}
+    # annotations: {}
+    # labels: {}
+  # -- (corev1.PodSpec) Extend the pod template, and/or override certain configurations.
+  # Ref: https://kubernetes.io/docs/concepts/workloads/pods/#pod-templates
+  podSpec:
+    # -- The pod resource limits and requests.
+    # Ref: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#resource-requests-and-limits-of-pod-and-container
+    resources: {}
+      # requests:
+      #   cpu: 1
+      #   memory: 1Gi
+    # -- Additional initContainers for the pod.
+    # Ref: https://kubernetes.io/docs/concepts/workloads/pods/init-containers/
+    # Ref: https://kubernetes.io/docs/concepts/workloads/pods/sidecar-containers/
+    initContainers: []
+    # -- (map[string]string) Node label selector for pod assignment.
+    # Ref: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#nodeselector
+    nodeSelector:
+      kubernetes.io/os: linux
+    # -- Affinity for pod assignment.
+    # Ref: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#affinity-and-anti-affinity
+    affinity: {}
+    # -- Tolerations for pod assignment.
+    # Ref: https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/
+    tolerations: []
+      # - key: key1
+      #   operator: Exists
+      #   effect: NoSchedule
+  # -- The service configuration.
+  service:
+    # -- Labels and annotations.
+    # Ref: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
+    metadata: {}
+      # annotations: {}
+      # labels: {}
+    # -- (corev1.ServiceSpec) Extend the service template, and/or override certain configurations.
+    # Ref: https://kubernetes.io/docs/concepts/services-networking/service/
+    spec: {}
+      # type: LoadBalancer
+    # port: 6817
+    # nodePort: 30817
+  # Metrics configuration.
+  # Ref: https://slurm.schedmd.com/metrics.html
+  metrics:
+    # -- Enable metrics.
+    enabled: false
+    # Prometheus service monitor configuration.
+    serviceMonitor:
+      # -- Enable serviceMonitor for metrics discovery.
+      enabled: false
+      # -- Annotations (metadata) added to the serviceMonitor.
+      annotations: {}
+      # -- Labels (metadata) added to the serviceMonitor.
+      labels: {}
+      # -- Interval at which Prometheus scrapes the metrics from the target (all endpoints).
+      # If empty, the Prometheus default will be used instead.
+      interval: 30s
+      # -- ScrapeTimeout defines the timeout after which Prometheus considers the scrape to be failed (all endpoints).
+      # If empty, the Prometheus default will be used instead.
+      scrapeTimeout: 25s
+      # -- Endpoint scrape configuration.
+      # If empty, a default group of endpoints will be used.
+      # Ref: https://slurm.schedmd.com/metrics.html#endpoints
+      endpoints:
+        - path: /metrics/jobs
+        - path: /metrics/nodes
+        - path: /metrics/partitions
+        - path: /metrics/scheduler
+        # - path: /metrics/jobs-users-accts
+
+# Slurm REST API (slurmrestd) configuration.
+restapi:
+  # -- Number of replicas to deploy.
+  replicas: 1
+  # slurmrestd container configurations.
+  slurmrestd:
+    # -- (string \| object) The image to use.
+    # Ref: https://kubernetes.io/docs/concepts/containers/images/#image-names
+    image:
+      repository: ghcr.io/slinkyproject/slurmrestd
+      tag: 25.11-ubuntu24.04
+    # -- Environment passed to the image.
+    # Ref: https://slurm.schedmd.com/slurmrestd.html#SECTION_ENVIRONMENT-VARIABLES
+    env: []
+      # - name: SLURMRESTD_DEBUG_STDERR
+      #   value: "9"
+      # - name: SLURMRESTD_YAML
+      #   value: pretty
+    # -- Arguments passed to the image.
+    # Ref: https://slurm.schedmd.com/slurmrestd.html#SECTION_OPTIONS
+    args: []
+    # -- The container resource limits and requests.
+    # Ref: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#resource-requests-and-limits-of-pod-and-container
+    resources: {}
+      # requests:
+      #   cpu: 1
+      #   memory: 1Gi
+  # -- Labels and annotations.
+  # Ref: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
+  metadata: {}
+    # annotations: {}
+    # labels: {}
+  # -- (corev1.PodSpec) Extend the pod template, and/or override certain configurations.
+  # Ref: https://kubernetes.io/docs/concepts/workloads/pods/#pod-templates
+  podSpec:
+    # -- The pod resource limits and requests.
+    # Ref: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#resource-requests-and-limits-of-pod-and-container
+    resources: {}
+      # requests:
+      #   cpu: 1
+      #   memory: 1Gi
+    # -- Additional initContainers for the pod.
+    # Ref: https://kubernetes.io/docs/concepts/workloads/pods/init-containers/
+    # Ref: https://kubernetes.io/docs/concepts/workloads/pods/sidecar-containers/
+    initContainers: []
+    # -- (map[string]string) Node label selector for pod assignment.
+    # Ref: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#nodeselector
+    nodeSelector:
+      kubernetes.io/os: linux
+    # -- Affinity for pod assignment.
+    # Ref: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#affinity-and-anti-affinity
+    affinity: {}
+    # -- Tolerations for pod assignment.
+    # Ref: https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/
+    tolerations: []
+      # - key: key1
+      #   operator: Exists
+      #   effect: NoSchedule
+  # -- The service configuration.
+  service:
+    # -- Labels and annotations.
+    # Ref: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
+    metadata: {}
+      # annotations: {}
+      # labels: {}
+    # -- (corev1.ServiceSpec) Extend the service template, and/or override certain configurations.
+    # Ref: https://kubernetes.io/docs/concepts/services-networking/service/
+    spec: {}
+      # type: ClusterIP
+    # port: 6820
+    # nodePort: 30820
+
+# Slurm accounting (slurmdbd) configuration.
+accounting:
+  # -- Enables Slurm accounting subsystem, stores job/step historical records.
+  # Ref: https://slurm.schedmd.com/accounting.html#Overview
+  enabled: false
+  # -- Configures this component as external (not in Kubernetes).
+  external: false
+  # Details required to communicate with an external slurmdbd.
+  # When `external=true`, `externalConfig` is used and all other fields are ignored.
+  externalConfig:
+    # -- The slurmdbd host address or IP.
+    host: slurmdbd.example.com
+    # -- The slurmdbd port. Default is 6819.
+    port: null
+  # slurmdbd container configurations.
+  slurmdbd:
+    # -- (string \| object) The image to use.
+    # Ref: https://kubernetes.io/docs/concepts/containers/images/#image-names
+    image:
+      repository: ghcr.io/slinkyproject/slurmdbd
+      tag: 25.11-ubuntu24.04
+    # -- Arguments passed to the image.
+    # Ref: https://slurm.schedmd.com/slurmdbd.html#SECTION_OPTIONS
+    args: []
+      # - -vvv
+    # -- The container resource limits and requests.
+    # Ref: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#resource-requests-and-limits-of-pod-and-container
+    resources: {}
+      # requests:
+      #   cpu: 1
+      #   memory: 1Gi
+  # The storage configuration.
+  storageConfig:
+    # -- The name of the host where the database is running.
+    # Ref: https://slurm.schedmd.com/slurmdbd.conf.html#OPT_StorageHost
+    host: mariadb
+    # -- The port number to communicate with the database with.
+    # Ref: https://slurm.schedmd.com/slurmdbd.conf.html#OPT_StoragePort
+    port: 3306
+    # -- The name of the database where records are written into.
+    # Ref: https://slurm.schedmd.com/slurmdbd.conf.html#OPT_StorageLoc
+    database: slurm_acct_db
+    # -- The name of the user used to connect to the database with.
+    # Ref: https://slurm.schedmd.com/slurmdbd.conf.html#OPT_StorageUser
+    username: slurm
+    # -- (secretKeyRef) The password used to connect to the database, from secret reference.
+    # Ref: https://slurm.schedmd.com/slurmdbd.conf.html#OPT_StoragePass
+    passwordKeyRef:
+      name: mariadb-password
+      key: password
+  # -- (string) Raw extra Slurm configuration lines appended to `slurmdbd.conf`.
+  # Ref: https://slurm.schedmd.com/slurmdbd.conf.html
+  extraConf: null
+  # -- (map[string]string \| map[string][]string) Extra Slurm configuration lines appended to `slurmdbd.conf`.
+  # If `extraConf` is not empty, it takes precedence.
+  # Ref: https://slurm.schedmd.com/slurmdbd.conf.html
+  extraConfMap: {}
+    # CommitDelay: 1
+    # DebugLevel: debug2
+    # DebugFlags: []
+    # PurgeEventAfter=1month
+    # PurgeJobAfter=12month
+    # PurgeResvAfter=1month
+    # PurgeStepAfter=1month
+    # PurgeSuspendAfter=1month
+    # PurgeTXNAfter=12month
+    # PurgeUsageAfter=24month
+  # -- Labels and annotations.
+  # Ref: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
+  metadata: {}
+    # annotations: {}
+    # labels: {}
+  # -- (corev1.PodSpec) Extend the pod template, and/or override certain configurations.
+  # Ref: https://kubernetes.io/docs/concepts/workloads/pods/#pod-templates
+  podSpec:
+    # -- The pod resource limits and requests.
+    # Ref: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#resource-requests-and-limits-of-pod-and-container
+    resources: {}
+      # requests:
+      #   cpu: 1
+      #   memory: 1Gi
+    # -- Additional initContainers for the pod.
+    # Ref: https://kubernetes.io/docs/concepts/workloads/pods/init-containers/
+    # Ref: https://kubernetes.io/docs/concepts/workloads/pods/sidecar-containers/
+    initContainers: []
+    # -- (map[string]string) Node label selector for pod assignment.
+    # Ref: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#nodeselector
+    nodeSelector:
+      kubernetes.io/os: linux
+    # -- Affinity for pod assignment.
+    # Ref: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#affinity-and-anti-affinity
+    affinity: {}
+    # -- Tolerations for pod assignment.
+    # Ref: https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/
+    tolerations: []
+      # - key: key1
+      #   operator: Exists
+      #   effect: NoSchedule
+  # -- The service configuration.
+  service:
+    # -- Labels and annotations.
+    # Ref: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
+    metadata: {}
+      # annotations: {}
+      # labels: {}
+    # -- (corev1.ServiceSpec) Extend the service template, and/or override certain configurations.
+    # Ref: https://kubernetes.io/docs/concepts/services-networking/service/
+    spec: {}
+      # type: LoadBalancer
+    # port: 6819
+    # nodePort: 30819
+
+# Cluster SSSD configuration.
+sssd:
+  # -- (secretKeyRef) The `sssd.conf` by ref.
+  # NOTE: Takes presence over `conf` if not empty.
+  secretRef: {}
+    # name: slurm-sssd-conf
+    # key: sssd.conf
+  # -- The `sssd.conf` by raw file.
+  # Ref: https://man.archlinux.org/man/sssd.conf.5
+  conf: |
+    [sssd]
+    config_file_version = 2
+    services = nss,pam
+    domains = DEFAULT
+
+    [nss]
+    filter_groups = root,slurm
+    filter_users = root,slurm
+
+    [pam]
+
+    [domain/DEFAULT]
+    id_provider = files
+    auth_provider = files
+
+# -- (map[string]object) Slurm LoginSet (sackd, sshd, sssd) configurations.
+loginsets:
+  # Sample LoginSet.
+  slinky:
+    # -- Enable use of this LoginSet.
+    enabled: false
+    # -- Number of replicas to deploy.
+    replicas: 1
+    # -- Deployment strategy configuration.
+    # Ref: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#strategy
+    strategy: {}
+      # type: RollingUpdate
+      # rollingUpdate:
+      #   maxUnavailable: 0
+      #   maxSurge: 1
+    # login container configurations.
+    login:
+      # -- (string \| object) The image to use.
+      # Ref: https://kubernetes.io/docs/concepts/containers/images/#image-names
+      image:
+        repository: ghcr.io/slinkyproject/login
+        tag: 25.11-ubuntu24.04
+      # -- Environment passed to the image.
+      env: []
+        # - name: SACKD_DEBUG
+        #   value: debug2
+      # -- The container security context to use.
+      # Ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-container
+      securityContext:
+        privileged: false
+        # capabilities:
+        #   add:
+        #     - SYS_CHROOT
+      # -- The container resource limits and requests.
+      # Ref: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#resource-requests-and-limits-of-pod-and-container
+      resources: {}
+        # requests:
+        #   cpu: 1
+        #   memory: 1Gi
+      # -- List of volume mounts to use.
+      # Ref: https://kubernetes.io/docs/concepts/storage/volumes/
+      volumeMounts: []
+        # - name: nfs-home
+        #   mountPath: /home
+    # InitConf container configurations.
+    initconf:
+      # -- (string \| object) The image to use.
+      # Ref: https://kubernetes.io/docs/concepts/containers/images/#image-names
+      image:
+        repository: docker.io/library/alpine
+        tag: latest
+      # -- The container resource limits and requests.
+      # Ref: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#resource-requests-and-limits-of-pod-and-container
+      resources: {}
+        # limits:
+        #   cpu: 500m
+        #   memory: 100Mi
+    # -- SSH public keys to write into `/root/.ssh/authorized_keys`.
+    rootSshAuthorizedKeys: null
+    # -- Extra configuration lines appended to `/etc/ssh/sshd_config`.
+    # Ref: https://manpages.ubuntu.com/manpages/noble/man5/sshd_config.5.html
+    extraSshdConfig: null
+    # -- Labels and annotations.
+    # Ref: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
+    metadata: {}
+      # annotations: {}
+      # labels: {}
+    # -- (corev1.PodSpec) Extend the pod template, and/or override certain configurations.
+    # Ref: https://kubernetes.io/docs/concepts/workloads/pods/#pod-templates
+    podSpec:
+      # -- The pod resource limits and requests.
+      # Ref: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#resource-requests-and-limits-of-pod-and-container
+      resources: {}
+        # requests:
+        #   cpu: 1
+        #   memory: 1Gi
+      # -- Additional initContainers for the pod.
+      # Ref: https://kubernetes.io/docs/concepts/workloads/pods/init-containers/
+      # Ref: https://kubernetes.io/docs/concepts/workloads/pods/sidecar-containers/
+      initContainers: []
+      # -- (map[string]string) Node label selector for pod assignment.
+      # Ref: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#nodeselector
+      nodeSelector:
+        kubernetes.io/os: linux
+      # -- Affinity for pod assignment.
+      # Ref: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#affinity-and-anti-affinity
+      affinity: {}
+      # -- Tolerations for pod assignment.
+      # Ref: https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/
+      tolerations: []
+        # - key: key1
+        #   operator: Exists
+        #   effect: NoSchedule
+      # -- List of volumes to use.
+      # Ref: https://kubernetes.io/docs/concepts/storage/volumes/
+      volumes: []
+        # - name: nfs-home
+        #   nfs:
+        #     server: nfs-server.example.com
+        #     path: /exports/home
+    # -- The service configuration.
+    service:
+      # -- Labels and annotations.
+      # Ref: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
+      metadata: {}
+        # annotations: {}
+        # labels: {}
+      # -- (corev1.ServiceSpec) Extend the service template, and/or override certain configurations.
+      # Ref: https://kubernetes.io/docs/concepts/services-networking/service/
+      spec:
+        type: LoadBalancer
+      # port: 22
+      # nodePort: 32222
+
+# -- (map[string]object) Slurm NodeSet (slurmd) configurations.
+nodesets:
+  # Sample NodeSet.
+  slinky:
+    # -- Enable use of this NodeSet.
+    enabled: true
+    # -- Scaling mode: "StatefulSet" (fixed replica count) or "DaemonSet" (one pod per matching node).
+    scalingMode: StatefulSet
+    # -- Number of replicas to deploy. Ignored when scalingMode is daemonset.
+    replicas: 1
+    # -- Pin pods to their initially assigned Kubernetes nodes.
+    pinToNode: false
+    # -- Taint the Kubernetes nodes on which nodeset pods are scheduled with NoExecute.
+    taintKubeNodes: false
+    # -- Use a Pod Disruption Budget to protect pods in this NodeSet when Slurm jobs are running on them
+    # Ref: https://kubernetes.io/docs/tasks/run-application/configure-pdb/
+    workloadDisruptionProtection: true
+    # -- Control when the operator deletes Slurm node records. One of: Never; NodeNotFound.
+    pruneSlurmNodeRecords: Never
+    # -- How many places to pad with zeroes when constructing the pod ordinal.
+    ordinalPadding: 0
+    # slurmd container configurations.
+    slurmd:
+      # -- (string \| object) The image to use.
+      # Ref: https://kubernetes.io/docs/concepts/containers/images/#image-names
+      image:
+        repository: ghcr.io/slinkyproject/slurmd
+        tag: 25.11-ubuntu24.04
+      # -- Arguments passed to the image.
+      # Ref: https://slurm.schedmd.com/slurmd.html#SECTION_OPTIONS
+      args: []
+        # - -vvv
+      # -- Environment passed to the image.
+      env: []
+        # - name: PAM_SLURM_ADOPT_OPTIONS
+        #   value: action_adopt_failure=deny action_generic_failure=deny
+      # -- The container resource limits and requests.
+      # Ref: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#resource-requests-and-limits-of-pod-and-container
+      resources: {}
+        # limits:
+        #   cpu: 1
+        #   memory: 1Gi
+      # -- List of volume mounts to use.
+      # Ref: https://kubernetes.io/docs/concepts/storage/volumes/
+      volumeMounts: []
+        # - name: nfs-home
+        #   mountPath: /home
+    # LogFile sidecar configurations.
+    logfile:
+      # -- (string \| object) The image to use.
+      # Ref: https://kubernetes.io/docs/concepts/containers/images/#image-names
+      image:
+        repository: docker.io/library/alpine
+        tag: latest
+      # -- The container resource limits and requests.
+      # Ref: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#resource-requests-and-limits-of-pod-and-container
+      resources: {}
+        # requests:
+        #   cpu: 500m
+        #   memory: 128Mi
+    # -- (string) Raw extra configuration added to the `--conf` argument.
+    # Ref: https://slurm.schedmd.com/slurmd.html#OPT_conf-%3Cnode-parameters%3E
+    # Ref: https://slurm.schedmd.com/slurm.conf.html#SECTION_NODE-CONFIGURATION
+    extraConf: null
+    # -- (map[string]string \| map[string][]string) Extra configuration added to the `--conf` option.
+    # If `extraConf` is not empty, it takes precedence.
+    # Ref: https://slurm.schedmd.com/slurmd.html#OPT_conf-%3Cnode-parameters%3E
+    # Ref: https://slurm.schedmd.com/slurm.conf.html#SECTION_NODE-CONFIGURATION
+    extraConfMap: {}
+      # Features: []
+      # Gres: []
+      # Weight: 1
+    # Partition configuration for this NodeSet.
+    partition:
+      # -- Enable NodeSet partition creation.
+      enabled: false
+      # -- (string) Raw Slurm partition configuration options added to the partition line added to the partition line.
+      # Ref: https://slurm.schedmd.com/slurm.conf.html#SECTION_PARTITION-CONFIGURATION
+      config: null
+      # -- (map[string]string \| map[string][]string) The Slurm partition configuration options added to the partition line.
+      # If `config` is not empty, it takes precedence.
+      # Ref: https://slurm.schedmd.com/slurm.conf.html#SECTION_PARTITION-CONFIGURATION
+      configMap: {}
+        # State: UP
+        # MaxTime: UNLIMITED
+    # SSH configuration for this NodeSet.
+    ssh:
+      # -- Enable SSH access to worker pods with pam_slurm_adopt.
+      # Ref: https://slurm.schedmd.com/pam_slurm_adopt.html
+      enabled: false
+      # -- Extra configuration lines appended to `/etc/ssh/sshd_config`.
+      # Ref: https://manpages.ubuntu.com/manpages/noble/man5/sshd_config.5.html
+      extraSshdConfig: null
+    # Update strategy configuration.
+    # Ref: https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/#update-strategies
+    updateStrategy:
+      # -- The strategy type. Can be one of: RollingUpdate; OnDelete.
+      type: RollingUpdate
+      # The RollingUpdate configuration. Ignored unless `type=RollingUpdate`.
+      rollingUpdate:
+        # -- Maximum number of pods that can be unavailable during update.
+        # Can be an absolute number (ex: 5) or a percentage (ex: 25%).
+        maxUnavailable: 25%
+    # -- Labels and annotations.
+    # Ref: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
+    metadata: {}
+      # annotations: {}
+      # labels: {}
+    # -- (corev1.PodSpec) Extend the pod template, and/or override certain configurations.
+    # Ref: https://kubernetes.io/docs/concepts/workloads/pods/#pod-templates
+    podSpec:
+      # -- The pod resource limits and requests.
+      # Ref: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#resource-requests-and-limits-of-pod-and-container
+      resources: {}
+        # limits:
+        #   cpu: 1
+        #   memory: 1Gi
+      # -- Additional initContainers for the pod.
+      # Ref: https://kubernetes.io/docs/concepts/workloads/pods/init-containers/
+      # Ref: https://kubernetes.io/docs/concepts/workloads/pods/sidecar-containers/
+      initContainers: []
+      # -- (map[string]string) Node label selector for pod assignment.
+      # Ref: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#nodeselector
+      nodeSelector:
+        kubernetes.io/os: linux
+      # -- Affinity for pod assignment.
+      # Ref: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#affinity-and-anti-affinity
+      affinity: {}
+      # -- Tolerations for pod assignment.
+      # Ref: https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/
+      tolerations: []
+        # - key: nvidia.com/gpu
+        #   effect: NoSchedule
+      # -- List of volumes to use.
+      # Ref: https://kubernetes.io/docs/concepts/storage/volumes/
+      volumes: []
+        # - name: nfs-home
+        #   nfs:
+        #     server: nfs-server.example.com
+        #     path: /exports/home
+
+# -- (map[string]object) Slurm partition configurations.
+# The map key represents the partition name (must be unique); the map value represents the partition definition.
+partitions:
+  # Example partition containing all NodeSets.
+  all:
+    # -- Enable this partition to be defined in Slurm config.
+    enabled: true
+    # -- List of NodeSets to be associated with this partition.
+    # Ref: https://slurm.schedmd.com/slurm.conf.html#OPT_Nodes_1
+    nodesets:
+      - ALL
+    # -- (string) Raw Slurm partition configuration options added to the partition line.
+    # Ref: https://slurm.schedmd.com/slurm.conf.html#SECTION_PARTITION-CONFIGURATION
+    config: null
+    # -- (map[string]string \| map[string][]string) The Slurm partition configuration options added to the partition line.
+    # If `config` is not empty, it takes precedence.
+    # Ref: https://slurm.schedmd.com/slurm.conf.html#SECTION_PARTITION-CONFIGURATION
+    configMap:
+      State: UP
+      Default: "YES"
+      MaxTime: UNLIMITED
+
+# Vendor specific integration and configurations.
+vendor:
+  # NVIDIA
+  nvidia:
+    # DCGM integration for GPU metrics with job labeling
+    # Ref: https://github.com/NVIDIA/dcgm-exporter
+    dcgm:
+      # -- Enable DCGM GPU-to-job mapping integration
+      enabled: false
+      # -- Directory path where GPU-to-job mapping files will be stored
+      jobMappingDir: "/var/lib/dcgm-exporter/job-mapping"
+      # -- Script execution priority (lower numbers run first)
+      scriptPriority: "90"
+
+# -- Extra Kubernetes objects to deploy alongside the chart.
+# Each entry is rendered as a standalone Kubernetes object.
+# Supports Helm templating (e.g. {{ .Release.Namespace }}).
+extraObjects: []
+  # - apiVersion: v1
+  #   kind: ConfigMap
+  #   metadata:
+  #     name: extra-config
+  #   data:
+  #     key: value

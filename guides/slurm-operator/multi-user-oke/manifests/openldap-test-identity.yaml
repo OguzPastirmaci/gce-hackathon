@@ -1,0 +1,192 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: openldap-test-bootstrap
+  namespace: slurm
+data:
+  10-slurm-users.ldif: |
+    dn: ou=People,dc=example,dc=org
+    objectClass: organizationalUnit
+    ou: People
+
+    dn: ou=Groups,dc=example,dc=org
+    objectClass: organizationalUnit
+    ou: Groups
+
+    dn: cn=alice,ou=Groups,dc=example,dc=org
+    objectClass: top
+    objectClass: posixGroup
+    cn: alice
+    gidNumber: 10001
+    memberUid: alice
+
+    dn: cn=project-a,ou=Groups,dc=example,dc=org
+    objectClass: top
+    objectClass: posixGroup
+    cn: project-a
+    gidNumber: 11001
+    memberUid: alice
+
+    dn: uid=alice,ou=People,dc=example,dc=org
+    objectClass: inetOrgPerson
+    objectClass: posixAccount
+    objectClass: shadowAccount
+    cn: Alice Slurm
+    sn: Slurm
+    uid: alice
+    uidNumber: 10001
+    gidNumber: 10001
+    homeDirectory: /home/alice
+    loginShell: /bin/bash
+    userPassword: alicepw
+    description: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHmMWbUCIHpGAIW/WIM6tKHp5g6ET52JFLTXGApEbP2J alice-slurm-test
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: openldap-test
+  namespace: slurm
+  labels:
+    app.kubernetes.io/name: openldap-test
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: openldap-test
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: openldap-test
+    spec:
+      containers:
+        - name: openldap
+          image: docker.io/osixia/openldap:1.5.0
+          args:
+            - --copy-service
+          env:
+            - name: LDAP_ORGANISATION
+              value: Slurm Test
+            - name: LDAP_DOMAIN
+              value: example.org
+            - name: LDAP_ADMIN_PASSWORD
+              value: adminpassword
+            - name: LDAP_TLS
+              value: "false"
+            - name: LDAP_REMOVE_CONFIG_AFTER_SETUP
+              value: "false"
+          ports:
+            - name: ldap
+              containerPort: 389
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: openldap-test
+  namespace: slurm
+  labels:
+    app.kubernetes.io/name: openldap-test
+spec:
+  selector:
+    app.kubernetes.io/name: openldap-test
+  ports:
+    - name: ldap
+      port: 389
+      targetPort: ldap
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: openldap-test-bootstrap
+  namespace: slurm
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: ldapadd
+          image: docker.io/osixia/openldap:1.5.0
+          command:
+            - /bin/sh
+            - -lc
+            - |
+              until ldapsearch -x -H ldap://openldap-test.slurm.svc.cluster.local:389 \
+                -D cn=admin,dc=example,dc=org -w adminpassword \
+                -b dc=example,dc=org -s base dn >/dev/null; do
+                sleep 2
+              done
+
+              if ldapsearch -x -H ldap://openldap-test.slurm.svc.cluster.local:389 \
+                -D cn=admin,dc=example,dc=org -w adminpassword \
+                -b uid=alice,ou=People,dc=example,dc=org -s base uid 2>/dev/null | \
+                grep -q '^uid: alice'; then
+                exit 0
+              fi
+
+              ldapadd -x -H ldap://openldap-test.slurm.svc.cluster.local:389 \
+                -D cn=admin,dc=example,dc=org -w adminpassword \
+                -f /ldif/10-slurm-users.ldif
+          volumeMounts:
+            - name: bootstrap
+              mountPath: /ldif
+              readOnly: true
+      volumes:
+        - name: bootstrap
+          configMap:
+            name: openldap-test-bootstrap
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: site-sssd-ldap-test-conf
+  namespace: slurm
+type: Opaque
+stringData:
+  sssd.conf: |
+    [sssd]
+    config_file_version = 2
+    services = nss,pam,ssh
+    domains = LDAP
+
+    [nss]
+    filter_users = root,slurm
+    filter_groups = root,slurm
+    entry_cache_timeout = 60
+    entry_cache_nowait_percentage = 75
+
+    [pam]
+
+    [ssh]
+
+    [domain/LDAP]
+    id_provider = ldap
+    auth_provider = ldap
+    access_provider = permit
+
+    ldap_uri = ldap://openldap-test.slurm.svc.cluster.local:389
+    ldap_search_base = dc=example,dc=org
+    ldap_user_search_base = ou=People,dc=example,dc=org
+    ldap_group_search_base = ou=Groups,dc=example,dc=org
+
+    ldap_schema = rfc2307
+    ldap_id_use_start_tls = false
+    ldap_id_mapping = false
+    ldap_default_bind_dn = cn=admin,dc=example,dc=org
+    ldap_default_authtok_type = password
+    ldap_default_authtok = adminpassword
+
+    ldap_user_object_class = posixAccount
+    ldap_user_name = uid
+    ldap_user_uid_number = uidNumber
+    ldap_user_gid_number = gidNumber
+    ldap_user_home_directory = homeDirectory
+    ldap_user_shell = loginShell
+    ldap_user_ssh_public_key = description
+
+    ldap_group_object_class = posixGroup
+    ldap_group_name = cn
+    ldap_group_gid_number = gidNumber
+    ldap_group_member = memberUid
+
+    cache_credentials = true
+    enumerate = false

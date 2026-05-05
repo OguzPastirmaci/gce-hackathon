@@ -1,0 +1,94 @@
+{{- /*
+SPDX-FileCopyrightText: Copyright (C) SchedMD LLC.
+SPDX-License-Identifier: Apache-2.0
+*/}}
+
+{{- if .Values.webhook.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "slurm-operator.webhook.name" . }}
+  namespace: {{ include "slurm-operator.namespace" . }}
+  labels:
+    {{- include "slurm-operator.webhook.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.webhook.replicas }}
+  selector:
+    matchLabels:
+      {{- include "slurm-operator.webhook.selectorLabels" . | nindent 6 }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+        maxSurge: 1
+        maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        {{- include "slurm-operator.webhook.labels" . | nindent 8 }}
+    spec:
+      hostname: {{ include "slurm-operator.webhook.name" . }}
+      priorityClassName: {{ default "" .Values.priorityClassName }}
+      serviceAccountName: {{ include "slurm-operator.webhook.serviceAccountName" . }}
+      {{- include "slurm-operator.imagePullSecrets" . | nindent 6 }}
+      containers:
+        - name: webhook
+          image: {{ include "slurm-operator.webhook.imageRef" . }}
+          imagePullPolicy: {{ include "slurm-operator.webhook.imagePullPolicy" . }}
+          args:
+            - --zap-log-level
+            - {{ default "info" .Values.webhook.logLevel | quote }}
+            {{- with .Values.webhook.serverPort }}
+            - --server-addr
+            - {{ printf ":%s" (toString .) | quote }}
+            {{- end }}{{- /* with .Values.webhook.serverPort */}}
+            {{- with .Values.webhook.healthPort }}
+            - --health-addr
+            - {{ printf ":%s" (toString .) | quote }}
+            {{- end }}{{- /* with .Values.webhook.healthPort */}}
+            {{- with .Values.webhook.metricsPort }}
+            - --metrics-addr
+            - {{ printf ":%s" (toString .) | quote }}
+            {{- end }}{{- /* with .Values.webhook.metricsPort */}}
+            {{- if .Values.webhook.leaderElection }}
+            - --leader-elect
+            {{- end }}{{- /* if .Values.webhook.leaderElection */}}
+            - --leader-elect-namespace
+            - {{ include "slurm-operator.namespace" . }}
+            {{- with .Values.webhook.namespaces }}
+            - --namespaces
+            - {{ . | quote }}
+            {{- end }}{{- /* with .Values.webhook.namespaces */}}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: {{ .Values.webhook.healthPort | default 8081 }}
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: {{ .Values.webhook.healthPort | default 8081 }}
+          {{- with .Values.webhook.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: certificates
+              mountPath: /tmp/k8s-webhook-server/serving-certs/
+              readOnly: true
+      {{- with .Values.webhook.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}{{- /* with .Values.webhook.affinity */}}
+      {{- with .Values.webhook.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}{{- /* with .Values.webhook.tolerations */}}
+      {{- with .Values.webhook.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}{{- /* with .Values.webhook.topologySpreadConstraints */}}
+      volumes:
+        - name: certificates
+          secret:
+            defaultMode: 420
+            secretName: {{ .Values.certManager.secretName }}
+{{- end }}{{- /* if .Values.webhook.enabled */}}

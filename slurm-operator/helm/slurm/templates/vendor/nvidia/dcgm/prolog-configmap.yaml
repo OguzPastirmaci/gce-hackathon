@@ -1,0 +1,18 @@
+{{- /*
+SPDX-FileCopyrightText: Copyright (C) SchedMD LLC.
+SPDX-FileCopyrightText: Copyright (C) NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-License-Identifier: Apache-2.0
+*/}}
+
+{{- if (include "vendor.dcgm.enabled" .) }}
+{{- $jobMappingDir := include "vendor.dcgm.jobMappingDir" . -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ (include "vendor.dcgm.prologName" .) }}
+  namespace: {{ include "slurm.namespace" . }}
+  labels:
+    {{- include "slurm.labels" . | nindent 4 }}
+data:
+  {{- include "vendor.dcgm.prologScripts" . | nindent 2 }}
+{{- end }}{{- /* if (include "vendor.dcgm.enabled" .) */}}

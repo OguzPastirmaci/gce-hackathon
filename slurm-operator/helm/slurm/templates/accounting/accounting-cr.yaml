@@ -1,0 +1,58 @@
+{{- /*
+SPDX-FileCopyrightText: Copyright (C) SchedMD LLC.
+SPDX-License-Identifier: Apache-2.0
+*/}}
+
+{{- if .Values.accounting.enabled }}
+{{- $metadata := merge dict .Values.accounting.metadata (dict "labels" (fromYaml (include "slurm.labels" .))) -}}
+{{- $podSpec := .Values.accounting.podSpec | default dict -}}
+{{- $imagePullSecrets := concat list ($podSpec.imagePullSecrets | default list) (.Values.imagePullSecrets | default list) -}}
+{{- $_ := set $podSpec "imagePullSecrets" $imagePullSecrets -}}
+{{- $priorityClassName := $podSpec.priorityClassName | default (include "slurm.priorityClassName" $ | toString) -}}
+{{- $_ := set $podSpec "priorityClassName" $priorityClassName -}}
+{{- $podTemplate := dict "metadata" $metadata "spec" $podSpec -}}
+apiVersion: slinky.slurm.net/v1beta1
+kind: Accounting
+metadata:
+  name: {{ include "slurm.fullname" . }}
+  namespace: {{ include "slurm.namespace" . }}
+{{- with $metadata }}
+  {{- toYaml . | nindent 2 }}
+{{- end }}{{- /* with $metadata */}}
+spec:
+{{- if .Values.accounting.external }}
+  external: {{ .Values.accounting.external }}
+  {{- with .Values.accounting.externalConfig }}
+  externalConfig:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}{{- /* with .Values.accounting.externalConfig */}}
+{{- else }}{{- /* if .Values.accounting.external */}}
+  slurmKeyRef:
+    name: {{ include "slurm.authSlurmRef.name" . }}
+    key: {{ include "slurm.authSlurmRef.key" . }}
+  jwtKeyRef:
+    name: {{ include "slurm.authJwtRef.name" . }}
+    key: {{ include "slurm.authJwtRef.key" . }}
+  {{- if .Values.jwksKeys.enabled }}
+  jwksKeyRef:
+    name: {{ include "slurm.authJwksRef.name" . }}
+    key: {{ include "slurm.authJwksRef.key" . }}
+  {{- end }}{{- /* if .Values.jwksKeys.enabled */}}
+  {{- if (include "slurm.accounting.extraConf" .) }}
+  extraConf: |-
+    {{- include "slurm.accounting.extraConf" . | nindent 4 }}
+  {{- end }}{{- /* if (include "slurm.accounting.extraConf" .) */}}
+  slurmdbd:
+    {{- $_ := set .Values.accounting.slurmdbd "imagePullPolicy" (get .Values.accounting.slurmdbd "imagePullPolicy" | default $.Values.imagePullPolicy ) -}}
+    {{- include "format-container" .Values.accounting.slurmdbd | nindent 4 }}
+  {{- include "format-podTemplate" $podTemplate | nindent 2 }}
+  {{- with .Values.accounting.storageConfig }}
+  storageConfig:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}{{- /* with .Values.accounting.storageConfig */}}
+  {{- with .Values.accounting.service }}
+  service:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}{{- /* with Values.accounting.service */}}
+{{- end }}{{- /* if .Values.accounting.external */}}
+{{- end }}{{- /* if .Values.accounting.enabled */}}

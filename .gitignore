@@ -1,0 +1,14 @@
+.DS_Store
+
+# Existing standalone checkouts that were already present in this directory.
+# They are intentionally left untouched by the Slurm/guides monorepo import.
+gcet-tools/
+strut2-mcp/
+
+# Untracked scratch copies from the Slurm Operator checkout. The canonical guide
+# material is imported under guides/.
+slurm-operator/deploying-slinky-on-oke.md
+slurm-operator/images/
+slurm-operator/misc/
+slurm-operator/slinky-quickstart-rdma.md
+slurm-operator/staging-nccl-test-binaries.md

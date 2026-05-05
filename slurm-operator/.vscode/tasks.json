@@ -1,0 +1,59 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Setup Webhook Debugging",
+      "type": "shell",
+      "command": [],
+      "presentation": {
+        "reveal": "never",
+        "panel": "shared"
+      },
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "Scale-Down Webhook Pods",
+        "Patch Webhook for Local Debugging"
+      ]
+    },
+    {
+      "label": "Scale-Down Webhook Pods",
+      "type": "shell",
+      "command": "kubectl -n slinky scale deployment/slurm-operator-webhook --replicas 0 || true",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Patch Webhook for Local Debugging",
+      "type": "shell",
+      "command": "${workspaceFolder}/.vscode/scripts/patch-webhook-local-debug.sh",
+      "presentation": {
+        "reveal": "never",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Revert Webhook Config",
+      "type": "shell",
+      "command": "${workspaceFolder}/.vscode/scripts/revert-webhook-local-debug.sh",
+      "presentation": {
+        "reveal": "never",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Revert Webhook Debugging",
+      "type": "shell",
+      "command": "",
+      "presentation": {
+        "reveal": "never",
+        "panel": "shared"
+      },
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "Revert Webhook Config"
+      ]
+    }
+  ]
+}

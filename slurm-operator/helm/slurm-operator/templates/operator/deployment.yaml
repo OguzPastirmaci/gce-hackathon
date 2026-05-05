@@ -1,0 +1,111 @@
+{{- /*
+SPDX-FileCopyrightText: Copyright (C) SchedMD LLC.
+SPDX-License-Identifier: Apache-2.0
+*/}}
+
+{{- if .Values.operator.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "slurm-operator.name" . }}
+  namespace: {{ include "slurm-operator.namespace" . }}
+  labels:
+    {{- include "slurm-operator.operator.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.operator.replicas }}
+  revisionHistoryLimit: 0
+  selector:
+    matchLabels:
+      {{- include "slurm-operator.operator.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "slurm-operator.operator.labels" . | nindent 8 }}
+    spec:
+      hostname: {{ include "slurm-operator.name" . }}
+      priorityClassName: {{ default "" .Values.priorityClassName }}
+      serviceAccountName: {{ include "slurm-operator.operator.serviceAccountName" . }}
+      {{- include "slurm-operator.imagePullSecrets" . | nindent 6 }}
+      containers:
+        - name: slurm-operator
+          image: {{ include "slurm-operator.operator.imageRef" . }}
+          imagePullPolicy: {{ include "slurm-operator.operator.imagePullPolicy" . }}
+          args:
+            {{- with .Values.operator.accountingWorkers }}
+            - --accounting-workers
+            - {{ . | quote }}
+            {{- end }}{{- /* with .Values.operator.accountingWorkers */}}
+            {{- with .Values.operator.controllerWorkers }}
+            - --controller-workers
+            - {{ . | quote }}
+            {{- end }}{{- /* with .Values.operator.controllerWorkers */}}
+            {{- with .Values.operator.loginsetWorkers }}
+            - --loginset-workers
+            - {{ . | quote }}
+            {{- end }}{{- /* with .Values.operator.loginsetWorkers */}}
+            {{- with .Values.operator.nodesetWorkers }}
+            - --nodeset-workers
+            - {{ . | quote }}
+            {{- end }}{{- /* with .Values.operator.nodesetWorkers */}}
+            {{- with .Values.operator.restapiWorkers }}
+            - --restapi-workers
+            - {{ . | quote }}
+            {{- end }}{{- /* with .Values.operator.restapiWorkers */}}
+            {{- with .Values.operator.tokenWorkers }}
+            - --token-workers
+            - {{ . | quote }}
+            {{- end }}{{- /* with .Values.operator.tokenWorkers */}}
+            {{- with .Values.operator.slurmclientWorkers }}
+            - --slurmclient-workers
+            - {{ . | quote }}
+            {{- end }}{{- /* with .Values.operator.slurmclientWorkers */}}
+            {{- with .Values.operator.logLevel }}
+            - --zap-log-level
+            - {{ . | quote }}
+            {{- end }}{{- /* with .Values.operator.logLevel */}}
+            {{- with .Values.operator.healthPort }}
+            - --health-addr
+            - {{ printf ":%s" (toString .) | quote }}
+            {{- end }}{{- /* with .Values.operator.healthPort */}}
+            {{- with .Values.operator.metricsPort }}
+            - --metrics-addr
+            - {{ printf ":%s" (toString .) | quote }}
+            {{- end }}{{- /* with .Values.operator.metricsPort */}}
+            {{- if .Values.operator.leaderElection }}
+            - --leader-elect
+            {{- end }}{{- /* if .Values.operator.leaderElection */}}
+            - --leader-elect-namespace
+            - {{ include "slurm-operator.namespace" . }}
+            {{- with .Values.operator.namespaces }}
+            - --namespaces
+            - {{ . | quote }}
+            {{- end }}{{- /* with .Values.operator.namespaces */}}
+            {{- with .Values.propagatedNodeConditions }}
+            - --propagated-node-conditions
+            - {{ join "," . | quote }}
+            {{- end }}{{- /* with .Values.propagatedNodeConditions */}}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: {{ .Values.operator.healthPort | default 8081 }}
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: {{ .Values.operator.healthPort | default 8081 }}
+          {{- with .Values.operator.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with .Values.operator.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}{{- /* with .Values.operator.affinity */}}
+      {{- with .Values.operator.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}{{- /* with .Values.operator.tolerations */}}
+      {{- with .Values.operator.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}{{- /* with .Values.operator.topologySpreadConstraints */}}
+{{- end }}{{- /* if .Values.operator.enabled */}}

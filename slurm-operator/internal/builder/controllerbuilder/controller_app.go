@@ -1,0 +1,394 @@
+// SPDX-FileCopyrightText: Copyright (C) SchedMD LLC.
+// SPDX-License-Identifier: Apache-2.0
+
+package controllerbuilder
+
+import (
+	"context"
+	_ "embed"
+	"fmt"
+	"path"
+	"slices"
+
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/utils/ptr"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+
+	slinkyv1beta1 "github.com/SlinkyProject/slurm-operator/api/v1beta1"
+	"github.com/SlinkyProject/slurm-operator/internal/builder/common"
+	"github.com/SlinkyProject/slurm-operator/internal/builder/labels"
+	"github.com/SlinkyProject/slurm-operator/internal/builder/metadata"
+	"github.com/SlinkyProject/slurm-operator/internal/defaults"
+	"github.com/SlinkyProject/slurm-operator/internal/utils/crypto"
+	"github.com/SlinkyProject/slurm-operator/internal/utils/structutils"
+)
+
+func (b *ControllerBuilder) BuildController(controller *slinkyv1beta1.Controller) (*appsv1.StatefulSet, error) {
+	key := controller.Key()
+	serviceKey := controller.ServiceKey()
+	selectorLabels := labels.NewBuilder().
+		WithControllerSelectorLabels(controller).
+		Build()
+	objectMeta := metadata.NewBuilder(key).
+		WithAnnotations(controller.Annotations).
+		WithLabels(controller.Labels).
+		WithMetadata(controller.Spec.Template.Metadata).
+		WithLabels(labels.NewBuilder().WithControllerLabels(controller).Build()).
+		Build()
+
+	persistence := controller.Spec.Persistence
+
+	podTemplate, err := b.controllerPodTemplate(controller)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build pod template: %w", err)
+	}
+
+	out := &appsv1.StatefulSet{
+		ObjectMeta: objectMeta,
+		Spec: appsv1.StatefulSetSpec{
+			PodManagementPolicy:  appsv1.ParallelPodManagement,
+			Replicas:             ptr.To[int32](1),
+			RevisionHistoryLimit: ptr.To[int32](0),
+			Selector: &metav1.LabelSelector{
+				MatchLabels: selectorLabels,
+			},
+			ServiceName: serviceKey.Name,
+			Template:    podTemplate,
+		},
+	}
+
+	isPersistenceEnabled := ptr.Deref(persistence.Enabled, defaults.DefaultControllerPersistenceEnabled)
+	switch {
+	case isPersistenceEnabled && persistence.ExistingClaim != "":
+		volume := corev1.Volume{
+			Name: common.SlurmctldStateSaveVolume,
+			VolumeSource: corev1.VolumeSource{
+				PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+					ClaimName: persistence.ExistingClaim,
+				},
+			},
+		}
+		out.Spec.Template.Spec.Volumes = append(out.Spec.Template.Spec.Volumes, volume)
+	case isPersistenceEnabled:
+		volumeClaimTemplate := corev1.PersistentVolumeClaim{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      common.SlurmctldStateSaveVolume,
+				Namespace: key.Namespace,
+			},
+			Spec: persistence.PersistentVolumeClaimSpec,
+		}
+		out.Spec.VolumeClaimTemplates = append(out.Spec.VolumeClaimTemplates, volumeClaimTemplate)
+	default:
+		volume := corev1.Volume{
+			Name: common.SlurmctldStateSaveVolume,
+			VolumeSource: corev1.VolumeSource{
+				EmptyDir: &corev1.EmptyDirVolumeSource{},
+			},
+		}
+		out.Spec.Template.Spec.Volumes = append(out.Spec.Template.Spec.Volumes, volume)
+	}
+
+	if err := controllerutil.SetControllerReference(controller, out, b.client.Scheme()); err != nil {
+		return nil, fmt.Errorf("failed to set owner controller: %w", err)
+	}
+
+	return out, nil
+}
+
+func (b *ControllerBuilder) controllerPodTemplate(controller *slinkyv1beta1.Controller) (corev1.PodTemplateSpec, error) {
+	ctx := context.TODO()
+	key := controller.Key()
+
+	var hashMap map[string]string
+	if controller.Spec.InplaceReconfigure {
+		var err error
+		hashMap, err = b.getAuthHashes(ctx, controller)
+		if err != nil {
+			return corev1.PodTemplateSpec{}, err
+		}
+	} else {
+		var err error
+		hashMap, err = b.getHashes(ctx, controller)
+		if err != nil {
+			return corev1.PodTemplateSpec{}, err
+		}
+	}
+
+	size := len(controller.Spec.ConfigFileRefs) + len(controller.Spec.PrologScriptRefs) + len(controller.Spec.EpilogScriptRefs) + len(controller.Spec.PrologSlurmctldScriptRefs) + len(controller.Spec.EpilogSlurmctldScriptRefs)
+	extraConfigMapNames := make([]string, 0, size)
+	for _, ref := range controller.Spec.ConfigFileRefs {
+		extraConfigMapNames = append(extraConfigMapNames, ref.Name)
+	}
+	for _, ref := range controller.Spec.PrologScriptRefs {
+		extraConfigMapNames = append(extraConfigMapNames, ref.Name)
+	}
+	for _, ref := range controller.Spec.EpilogScriptRefs {
+		extraConfigMapNames = append(extraConfigMapNames, ref.Name)
+	}
+	for _, ref := range controller.Spec.PrologSlurmctldScriptRefs {
+		extraConfigMapNames = append(extraConfigMapNames, ref.Name)
+	}
+	for _, ref := range controller.Spec.EpilogSlurmctldScriptRefs {
+		extraConfigMapNames = append(extraConfigMapNames, ref.Name)
+	}
+
+	objectMeta := metadata.NewBuilder(key).
+		WithAnnotations(controller.Annotations).
+		WithLabels(controller.Labels).
+		WithMetadata(controller.Spec.Template.Metadata).
+		WithLabels(labels.NewBuilder().WithControllerLabels(controller).Build()).
+		WithAnnotations(hashMap).
+		WithAnnotations(map[string]string{
+			annotationDefaultContainer: labels.ControllerApp,
+		}).
+		Build()
+
+	spec := controller.Spec
+	template := spec.Template.PodSpecWrapper
+
+	opts := common.PodTemplateOpts{
+		Key: key,
+		Metadata: slinkyv1beta1.Metadata{
+			Annotations: objectMeta.Annotations,
+			Labels:      objectMeta.Labels,
+		},
+		Base: corev1.PodSpec{
+			AutomountServiceAccountToken: ptr.To(false),
+			Containers: []corev1.Container{
+				b.slurmctldContainer(spec.Slurmctld.Container, controller.ClusterName()),
+			},
+			InitContainers: func() []corev1.Container {
+				var initContainers []corev1.Container
+				if controller.Spec.InplaceReconfigure {
+					initContainers = append(initContainers, b.reconfigureContainer(spec.Reconfigure))
+				}
+				initContainers = append(initContainers, b.CommonBuilder.LogfileContainer(spec.LogFile, common.SlurmctldLogFilePath))
+				return initContainers
+			}(),
+			SecurityContext: &corev1.PodSecurityContext{
+				RunAsNonRoot: ptr.To(true),
+				RunAsUser:    ptr.To(common.SlurmUserUid),
+				RunAsGroup:   ptr.To(common.SlurmUserGid),
+				FSGroup:      ptr.To(common.SlurmUserGid),
+			},
+			Volumes: controllerVolumes(controller, extraConfigMapNames),
+		},
+		Merge: template.PodSpec,
+	}
+
+	return b.CommonBuilder.BuildPodTemplate(opts), nil
+}
+
+func controllerVolumes(controller *slinkyv1beta1.Controller, extra []string) []corev1.Volume {
+	out := []corev1.Volume{
+		{
+			Name: common.SlurmEtcVolume,
+			VolumeSource: corev1.VolumeSource{
+				Projected: &corev1.ProjectedVolumeSource{
+					DefaultMode: ptr.To[int32](0o610),
+					Sources: []corev1.VolumeProjection{
+						{
+							ConfigMap: &corev1.ConfigMapProjection{
+								LocalObjectReference: corev1.LocalObjectReference{
+									Name: controller.ConfigKey().Name,
+								},
+							},
+						},
+						{
+							Secret: &corev1.SecretProjection{
+								LocalObjectReference: corev1.LocalObjectReference{
+									Name: controller.AuthSlurmRef().Name,
+								},
+								Items: []corev1.KeyToPath{
+									{Key: controller.AuthSlurmRef().Key, Path: common.SlurmKeyFile},
+								},
+							},
+						},
+						{
+							Secret: &corev1.SecretProjection{
+								LocalObjectReference: corev1.LocalObjectReference{
+									Name: controller.AuthJwtRef().Name,
+								},
+								Items: []corev1.KeyToPath{
+									{Key: controller.AuthJwtRef().Key, Path: common.JwtKeyFile},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		common.LogFileVolume(),
+		common.PidfileVolume(),
+		{
+			Name: common.SlurmAuthSocketVolume,
+			VolumeSource: corev1.VolumeSource{
+				EmptyDir: &corev1.EmptyDirVolumeSource{},
+			},
+		},
+	}
+	slices.Sort(extra)
+	for _, name := range extra {
+		volumeProjection := corev1.VolumeProjection{
+			ConfigMap: &corev1.ConfigMapProjection{
+				LocalObjectReference: corev1.LocalObjectReference{
+					Name: name,
+				},
+			},
+		}
+		out[0].Projected.Sources = append(out[0].Projected.Sources, volumeProjection)
+	}
+
+	if controller.AuthJwksRef() != nil {
+		volumeProjection := corev1.VolumeProjection{
+			ConfigMap: new(common.JwksConfigProjection(controller.AuthJwksRef(), common.JwksKeyFile)),
+		}
+		out[0].Projected.Sources = append(out[0].Projected.Sources, volumeProjection)
+	}
+
+	return out
+}
+
+func clusterSpoolDir(clustername string) string {
+	return path.Join(common.SlurmctldSpoolDir, clustername)
+}
+
+func (b *ControllerBuilder) slurmctldContainer(merge corev1.Container, clusterName string) corev1.Container {
+	opts := common.ContainerOpts{
+		Base: corev1.Container{
+			Name: labels.ControllerApp,
+			Ports: []corev1.ContainerPort{
+				{
+					Name:          labels.ControllerApp,
+					ContainerPort: common.SlurmctldPort,
+					Protocol:      corev1.ProtocolTCP,
+				},
+			},
+			StartupProbe: &corev1.Probe{
+				ProbeHandler: corev1.ProbeHandler{
+					HTTPGet: &corev1.HTTPGetAction{
+						Path: common.SlurmLivez,
+						Port: intstr.FromString(labels.ControllerApp),
+					},
+				},
+				FailureThreshold: 6,
+				PeriodSeconds:    10,
+			},
+			ReadinessProbe: &corev1.Probe{
+				ProbeHandler: corev1.ProbeHandler{
+					HTTPGet: &corev1.HTTPGetAction{
+						Path: common.SlurmReadyz,
+						Port: intstr.FromString(labels.ControllerApp),
+					},
+				},
+			},
+			LivenessProbe: &corev1.Probe{
+				ProbeHandler: corev1.ProbeHandler{
+					HTTPGet: &corev1.HTTPGetAction{
+						Path: common.SlurmLivez,
+						Port: intstr.FromString(labels.ControllerApp),
+					},
+				},
+				FailureThreshold: 6,
+				PeriodSeconds:    10,
+			},
+			SecurityContext: &corev1.SecurityContext{
+				RunAsNonRoot: ptr.To(true),
+				RunAsUser:    ptr.To(common.SlurmUserUid),
+				RunAsGroup:   ptr.To(common.SlurmUserGid),
+			},
+			VolumeMounts: []corev1.VolumeMount{
+				{Name: common.SlurmEtcVolume, MountPath: common.SlurmEtcDir, ReadOnly: true},
+				{Name: common.SlurmPidFileVolume, MountPath: common.SlurmPidFileDir},
+				{Name: common.SlurmctldStateSaveVolume, MountPath: clusterSpoolDir(clusterName)},
+				{Name: common.SlurmAuthSocketVolume, MountPath: common.SlurmctldAuthSocketDir},
+				{Name: common.SlurmLogFileVolume, MountPath: common.SlurmLogFileDir},
+			},
+		},
+		Merge: merge,
+	}
+
+	return b.CommonBuilder.BuildContainer(opts)
+}
+
+//go:embed scripts/reconfigure.sh
+var reconfigureScript string
+
+func (b *ControllerBuilder) reconfigureContainer(container slinkyv1beta1.ContainerWrapper) corev1.Container {
+	opts := common.ContainerOpts{
+		Base: corev1.Container{
+			Name: "reconfigure",
+			Command: []string{
+				"tini",
+				"-g",
+				"--",
+				"bash",
+				"-c",
+				reconfigureScript,
+			},
+			RestartPolicy: ptr.To(corev1.ContainerRestartPolicyAlways),
+			VolumeMounts: []corev1.VolumeMount{
+				{Name: common.SlurmEtcVolume, MountPath: common.SlurmEtcDir, ReadOnly: true},
+				{Name: common.SlurmAuthSocketVolume, MountPath: common.SlurmctldAuthSocketDir, ReadOnly: true},
+			},
+		},
+		Merge: container.Container,
+	}
+
+	return b.CommonBuilder.BuildContainer(opts)
+}
+
+const (
+	annotationSlurmConfigHash = slinkyv1beta1.SlinkyPrefix + "slurm-config-hash"
+)
+
+func (b *ControllerBuilder) getHashes(ctx context.Context, controller *slinkyv1beta1.Controller) (map[string]string, error) {
+	hashMap, err := b.getAuthHashes(ctx, controller)
+	if err != nil {
+		return nil, err
+	}
+
+	config := &corev1.ConfigMap{}
+	configKey := controller.ConfigKey()
+	if err := b.client.Get(ctx, configKey, config); err != nil {
+		if !apierrors.IsNotFound(err) {
+			return nil, err
+		}
+	}
+	slurmConfigHash := crypto.CheckSumFromMap(config.Data)
+
+	hashMap = structutils.MergeMaps(hashMap, map[string]string{
+		annotationSlurmConfigHash: slurmConfigHash,
+	})
+
+	return hashMap, nil
+}
+
+func (b *ControllerBuilder) getAuthHashes(ctx context.Context, controller *slinkyv1beta1.Controller) (map[string]string, error) {
+	authSlurm := &corev1.Secret{}
+	authSlurmKey := controller.AuthSlurmKey()
+	if err := b.client.Get(ctx, authSlurmKey, authSlurm); err != nil {
+		if !apierrors.IsNotFound(err) {
+			return nil, err
+		}
+	}
+
+	authJwt := &corev1.Secret{}
+	authJwtKey := controller.AuthJwtKey()
+	if err := b.client.Get(ctx, authJwtKey, authJwt); err != nil {
+		if !apierrors.IsNotFound(err) {
+			return nil, err
+		}
+	}
+
+	hashMap := map[string]string{
+		common.AnnotationAuthSlurmKeyHash: crypto.CheckSumFromMap(authSlurm.Data),
+		common.AnnotationAuthJwtKeyHash:   crypto.CheckSumFromMap(authJwt.Data),
+	}
+
+	return hashMap, nil
+}

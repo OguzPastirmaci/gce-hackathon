@@ -1,0 +1,78 @@
+{{- /*
+SPDX-FileCopyrightText: Copyright (C) SchedMD LLC.
+SPDX-License-Identifier: Apache-2.0
+*/}}
+
+{{- range $key, $nodeset := $.Values.nodesets }}
+{{- if $nodeset.enabled }}
+{{- $name := printf "%s-%s" (include "slurm.worker.name" $) $key }}
+{{- $metadata := merge dict ($nodeset.metadata | default dict) (dict "labels" (fromYaml (include "slurm.labels" $))) -}}
+{{- $podSpec := $nodeset.podSpec | default dict -}}
+{{- $imagePullSecrets := concat list ($podSpec.imagePullSecrets | default list) ($.Values.imagePullSecrets | default list) -}}
+{{- $_ := set $podSpec "imagePullSecrets" $imagePullSecrets -}}
+{{- $priorityClassName := $podSpec.priorityClassName | default (include "slurm.priorityClassName" $) -}}
+{{- $_ := set $podSpec "priorityClassName" $priorityClassName -}}
+{{- $_ := set $podSpec "hostname" (printf "%s-" $key) -}}
+{{- $podTemplate := dict "metadata" $metadata "spec" $podSpec -}}
+{{- $slurmdEnv := $nodeset.slurmd.env | default list -}}
+{{- $_ := set $nodeset.slurmd "env" $slurmdEnv -}}
+{{- if and (include "vendor.dcgm.enabled" $) (include "vendor.dcgm.nodesetHasGPU" $nodeset.slurmd) }}
+  {{- $volumeMounts := $nodeset.slurmd.volumeMounts | default list -}}
+  {{- $dcgmVolumeMount := dict "name" "dcgm-job-mapping" "mountPath" (include "vendor.dcgm.jobMappingDir" $) }}
+  {{- $volumeMounts = append $volumeMounts $dcgmVolumeMount }}
+  {{- $_ := set $nodeset.slurmd "volumeMounts" $volumeMounts -}}
+  {{- $volumes := $nodeset.podSpec.volumes | default list -}}
+  {{- $dcgmVolume := dict "name" "dcgm-job-mapping" "hostPath" (dict "path" (include "vendor.dcgm.jobMappingDir" $) "type" "DirectoryOrCreate") }}
+  {{- $volumes = append $volumes $dcgmVolume }}
+  {{- $_ := set $nodeset.podSpec "volumes" $volumes -}}
+{{- end }}
+---
+apiVersion: slinky.slurm.net/v1beta1
+kind: NodeSet
+metadata:
+  name: {{ $name }}
+  namespace: {{ include "slurm.namespace" $ }}
+  {{- with $metadata }}
+  {{- toYaml . | nindent 2 }}
+  {{- end }}{{- /* with $metadata */}}
+spec:
+  controllerRef:
+    name: {{ include "slurm.fullname" $ }}
+    namespace: {{ include "slurm.namespace" $ }}
+  {{- if (include "slurm.worker.extraConf" $nodeset) }}
+  extraConf: {{ include "slurm.worker.extraConf" $nodeset }}
+  {{- end -}}{{- /* if (include "slurm.worker.extraConf" $nodeset) */}}
+  {{- with $nodeset.partition }}
+  partition:
+    enabled: {{ $nodeset.partition.enabled }}
+    {{- if (include "slurm.worker.partitionConfig" $nodeset.partition) }}
+    config: {{ include "slurm.worker.partitionConfig" $nodeset.partition }}
+    {{- end }}{{- /* if (include "slurm.worker.partitionConfig" $nodeset.partition) */}}
+  {{- end }}{{- /* with $nodeset.partition */}}
+  {{- with $nodeset.ssh }}
+  {{- if $nodeset.ssh.enabled }}
+  {{- $_ := set $nodeset.ssh "sssdConfRef" (dict "name" (include "slurm.sssdConf.name" $) "key" (include "slurm.sssdConf.key" $)) }}
+  ssh:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}{{- /* if $nodeset.ssh.enabled */}}
+  {{- end }}{{- /* with $nodeset.ssh */}}
+  scalingMode: {{ $nodeset.scalingMode }}
+  replicas: {{ $nodeset.replicas }}
+  slurmd:
+    {{- $_ := set $nodeset.slurmd "imagePullPolicy" (get $nodeset.slurmd "imagePullPolicy" | default $.Values.imagePullPolicy ) -}}
+    {{- include "format-container" $nodeset.slurmd | nindent 4 }}
+  logfile:
+    {{- $_ := set $nodeset.logfile "imagePullPolicy" (get $nodeset.logfile "imagePullPolicy" | default $.Values.imagePullPolicy ) -}}
+    {{- include "format-container" $nodeset.logfile | nindent 4 }}
+  {{- include "format-podTemplate" $podTemplate | nindent 2 }}
+  {{- with $nodeset.updateStrategy }}
+  updateStrategy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}{{- /* with $nodeset.updateStrategy */}}
+  ordinalPadding: {{ $nodeset.ordinalPadding }}
+  pinToNode: {{ $nodeset.pinToNode }}
+  taintKubeNodes: {{ $nodeset.taintKubeNodes }}
+  workloadDisruptionProtection: {{ $nodeset.workloadDisruptionProtection }}
+  pruneSlurmNodeRecords: {{ $nodeset.pruneSlurmNodeRecords }}
+{{- end }}{{- /* $nodeset.enabled */}}
+{{- end }}{{- /* range $nodeset := $.Values.nodesets */}}

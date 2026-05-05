@@ -1,0 +1,38 @@
+{{- /*
+SPDX-FileCopyrightText: Copyright (C) SchedMD LLC.
+SPDX-License-Identifier: Apache-2.0
+*/}}
+
+{{- if .Values.operator.enabled }}
+{{- if .Values.operator.serviceAccount.create }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "slurm-operator.operator.serviceAccountName" . }}
+  namespace: {{ include "slurm-operator.namespace" . }}
+  labels:
+    {{- include "slurm-operator.operator.labels" . | nindent 4 }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "slurm-operator.operator.serviceAccountName" . }}
+  namespace: {{ include "slurm-operator.namespace" . }}
+{{- .Files.Get "files/operator_rbac_rules.yaml" | nindent 0 }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "slurm-operator.operator.serviceAccountName" . }}
+  labels:
+    {{- include "slurm-operator.operator.labels" . | nindent 4 }}
+subjects:
+- kind: ServiceAccount
+  name: {{ include "slurm-operator.operator.serviceAccountName" . }}
+  namespace: {{ include "slurm-operator.namespace" . }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "slurm-operator.operator.serviceAccountName" . }}
+{{- end }}{{- /* if .Values.operator.serviceAccount.create */}}
+{{- end }}{{- /* if .Values.operator.enabled */}}

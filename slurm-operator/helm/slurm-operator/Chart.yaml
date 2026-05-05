@@ -1,0 +1,29 @@
+---
+apiVersion: v2
+kubeVersion: ">= 1.29.0-0"
+
+name: slurm-operator
+description: Slurm Operator
+type: application
+appVersion: "25.11"
+version: 1.2.0-rc1
+
+annotations:
+  license: Apache-2.0
+
+home: https://slinky.schedmd.com/
+icon: https://raw.githubusercontent.com/SlinkyProject/docs/refs/heads/main/docs/_static/images/slinky.svg
+
+sources:
+  - https://github.com/SlinkyProject/slurm-operator
+
+maintainers:
+  - name: SchedMD LLC.
+    email: slinky@schedmd.com
+    url: https://support.schedmd.com/
+
+dependencies:
+  - name: slurm-operator-crds
+    version: 1.2.0-rc1
+    condition: crds.enabled
+    repository: file://../slurm-operator-crds

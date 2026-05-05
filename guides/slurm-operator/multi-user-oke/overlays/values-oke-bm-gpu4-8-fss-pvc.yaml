@@ -1,0 +1,162 @@
+# Concrete OKE test values for BM.GPU4.8 nodes, SR-IOV RDMA VFs, and the
+# existing FSS PVC `slurm-home`.
+#
+# This is based on `/home/ubuntu/slinky-values-sriov.yaml` from the operator
+# node and preserves the VF, `/dev/infiniband`, and `/dev/shm` settings. The
+# important shape selector is:
+#
+#   node.kubernetes.io/instance-type: BM.GPU4.8
+
+controller:
+  slurmctld:
+    image:
+      repository: iad.ocir.io/idxzjcdglx2s/slinky
+      tag: slurmctld-pmix-25.11-ubuntu24.04
+  persistence:
+    enabled: true
+    storageClassName: oci-bv
+    resources:
+      requests:
+        storage: 10Gi
+  extraConfMap:
+    GresTypes: "gpu"
+    PropagateResourceLimitsExcept: MEMLOCK
+    AccountingStorageEnforce: "associations,limits,qos"
+
+configFiles:
+  gres.conf: |
+    Name=gpu Type=a100 File=/dev/nvidia[0-7]
+  cgroup.conf: |
+    CgroupPlugin=cgroup/v2
+    IgnoreSystemd=yes
+    ConstrainCores=yes
+    ConstrainRAMSpace=no
+    ConstrainDevices=yes
+    ConstrainSwapSpace=no
+
+restapi:
+  replicas: 1
+
+nodesets:
+  slinky:
+    enabled: false
+  gpu-b4:
+    enabled: true
+    replicas: 2
+    useResourceLimits: false
+    slurmd:
+      command:
+        - /usr/local/bin/local-user-entrypoint.sh
+      image:
+        repository: iad.ocir.io/idxzjcdglx2s/slinky
+        tag: slurmd-rdma-pmix-25.11-ubuntu24.04
+      resources:
+        limits:
+          nvidia.com/gpu: 8
+          nvidia.com/sriov-rdma-vf: 16
+        requests:
+          nvidia.com/gpu: 8
+          nvidia.com/sriov-rdma-vf: 16
+      volumeMounts:
+        - name: devinf
+          mountPath: /dev/infiniband
+        - name: shm
+          mountPath: /dev/shm
+        - name: home
+          mountPath: /home
+        - name: local-user-entrypoint
+          mountPath: /usr/local/bin/local-user-entrypoint.sh
+          subPath: local-user-entrypoint.sh
+    logfile:
+      image:
+        repository: docker.io/library/alpine
+        tag: latest
+    extraConfMap:
+      Gres: ["gpu:a100:8"]
+      Features: ["a100", "40gb", "rdma", "sriov"]
+      Weight: 1
+    partition:
+      enabled: true
+      configMap:
+        State: UP
+        Default: "YES"
+        MaxTime: UNLIMITED
+    updateStrategy:
+      type: RollingUpdate
+      rollingUpdate:
+        maxUnavailable: 25%
+    metadata:
+      annotations:
+        k8s.v1.cni.cncf.io/networks: sriov-rdma-vf,sriov-rdma-vf,sriov-rdma-vf,sriov-rdma-vf,sriov-rdma-vf,sriov-rdma-vf,sriov-rdma-vf,sriov-rdma-vf,sriov-rdma-vf,sriov-rdma-vf,sriov-rdma-vf,sriov-rdma-vf,sriov-rdma-vf,sriov-rdma-vf,sriov-rdma-vf,sriov-rdma-vf
+    podSpec:
+      nodeSelector:
+        node.kubernetes.io/instance-type: BM.GPU4.8
+      tolerations:
+        - key: nvidia.com/gpu
+          effect: NoSchedule
+          operator: Exists
+      volumes:
+        - name: devinf
+          hostPath:
+            path: /dev/infiniband
+        - name: shm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 32Gi
+        - name: home
+          persistentVolumeClaim:
+            claimName: slurm-home
+        - name: local-user-entrypoint
+          configMap:
+            name: slurm-local-user-entrypoint
+            defaultMode: 0755
+
+partitions:
+  all:
+    enabled: true
+    nodesets: [ALL]
+    configMap:
+      State: UP
+      MaxTime: UNLIMITED
+
+loginsets:
+  slinky:
+    enabled: true
+    replicas: 1
+    login:
+      command:
+        - /usr/local/bin/local-user-entrypoint.sh
+      volumeMounts:
+        - name: home
+          mountPath: /home
+        - name: local-user-entrypoint
+          mountPath: /usr/local/bin/local-user-entrypoint.sh
+          subPath: local-user-entrypoint.sh
+    podSpec:
+      volumes:
+        - name: home
+          persistentVolumeClaim:
+            claimName: slurm-home
+        - name: local-user-entrypoint
+          configMap:
+            name: slurm-local-user-entrypoint
+            defaultMode: 0755
+    service:
+      spec:
+        type: LoadBalancer
+
+accounting:
+  enabled: true
+  storageConfig:
+    host: mariadb
+    port: 3306
+    database: slurm_acct_db
+    username: slurm
+    passwordKeyRef:
+      name: mariadb-password
+      key: password
+
+vendor:
+  nvidia:
+    dcgm:
+      enabled: false

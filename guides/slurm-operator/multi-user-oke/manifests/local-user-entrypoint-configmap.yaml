@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: slurm-local-user-entrypoint
+  namespace: slurm
+data:
+  local-user-entrypoint.sh: |
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    if ! getent group alice >/dev/null; then
+      groupadd -g 10001 alice
+    fi
+
+    if ! id -u alice >/dev/null 2>&1; then
+      useradd -u 10001 -g 10001 -d /home/alice -s /bin/bash alice
+    fi
+
+    mkdir -p /home/alice
+    chown 10001:10001 /home/alice 2>/dev/null || true
+    chmod 700 /home/alice 2>/dev/null || true
+
+    exec /usr/local/bin/entrypoint.sh "$@"

@@ -1,0 +1,332 @@
+# Kubernetes Operator for Slurm Clusters
+
+Run [Slurm] on [Kubernetes], by [SchedMD]. A [Slinky] project.
+
+## Table of Contents
+
+<!-- mdformat-toc start --slug=github --no-anchors --maxlevel=6 --minlevel=1 -->
+
+- [Kubernetes Operator for Slurm Clusters](#kubernetes-operator-for-slurm-clusters)
+  - [Table of Contents](#table-of-contents)
+  - [Overview](#overview)
+    - [Slurm Cluster](#slurm-cluster)
+  - [Features](#features)
+    - [Controller](#controller)
+    - [NodeSets](#nodesets)
+      - [StatefulSet (default)](#statefulset-default)
+      - [DaemonSet](#daemonset)
+    - [LoginSets](#loginsets)
+    - [Hybrid Support](#hybrid-support)
+    - [Slurm](#slurm)
+  - [Compatibility](#compatibility)
+  - [Quick Start](#quick-start)
+  - [Upgrades](#upgrades)
+    - [1.Y Releases](#1y-releases)
+    - [0.Y Releases](#0y-releases)
+  - [Documentation](#documentation)
+  - [Support and Development](#support-and-development)
+  - [License](#license)
+
+<!-- mdformat-toc end -->
+
+## Overview
+
+[Slurm] and [Kubernetes] are workload managers originally designed for different
+kinds of workloads. In broad strokes: Kubernetes excels at scheduling workloads
+that typically run for an indefinite amount of time, with potentially vague
+resource requirements, on a single node, with loose policy, but can scale its
+resource pool infinitely to meet demand; Slurm excels at quickly scheduling
+workloads that run for a finite amount of time, with well defined resource
+requirements and topology, on multiple nodes, with strict policy, but its
+resource pool is known.
+
+This project enables the best of both workload managers, unified on Kubernetes.
+It contains a [Kubernetes] operator to deploy and manage certain components of
+[Slurm] clusters. This repository implements [custom-controllers] and
+[custom resource definitions (CRDs)][crds] designed for the lifecycle (creation,
+upgrade, graceful shutdown) of Slurm clusters.
+
+!["Slurm Operator Architecture"](./docs/_static/images/architecture-operator.svg)
+
+For additional architectural notes, see the [architecture] docs.
+
+### Slurm Cluster
+
+Slurm clusters are very flexible and can be configured in various ways. Our
+Slurm helm chart provides a reference implementation that is highly customizable
+and tries to expose everything Slurm has to offer.
+
+!["Slurm Architecture"](./docs/_static/images/architecture-slurm.svg)
+
+For additional information about Slurm, see the [slurm][slurm-docs] docs.
+
+## Features
+
+### Controller
+
+The Slurm control-plane is responsible for scheduling Slurm workload onto its
+worker nodes and managing their states.
+
+Slurm [High Availability (HA)][slurm-ha] is effectively achieved though
+Kubernetes regenerating the Slurm controller pod if it crashes. This is
+generally faster than the time it takes for a backup controller to assume
+control if the primary crashes. Because Slurm's version of HA is not being used,
+a shared filesystem is not required for this.
+
+Changes to the Slurm configuration files are automatically detected and the
+Slurm cluster is reconfigured seamlessly with zero downtime of the Slurm
+control-plane.
+
+> [!NOTE]
+> The kubelet's `configMapAndSecretChangeDetectionStrategy` and `syncFrequency`
+> settings directly affect when pods have their mounted ConfigMaps and Secrets
+> updated. By default, the kubelet is in `Watch` mode with a polling frequency
+> of 60 seconds.
+
+### NodeSets
+
+A set of homogeneous Slurm workers (compute nodes), which are delegated to
+execute the Slurm workload.
+
+The operator will take into consideration the running workload among Slurm nodes
+as it needs to scale-in, upgrade, or otherwise handle node failures. Slurm nodes
+will be marked as [drain][slurm-drain] before their eventual termination pending
+scale-in or upgrade.
+
+Slurm node states (e.g. Idle, Allocated, Mixed, Down, Drain, Not Responding,
+etc...) are applied to each NodeSet pod via their pod conditions; each NodeSet
+pod contains a pod status that reflects their own Slurm node state.
+
+The NodeSet CRD supports a `scalingMode` field that controls how many pods are
+created and how they are scaled. This allows you to choose between replica-based
+scaling (like a StatefulSet) or one-pod-per-node scaling (like a DaemonSet).
+
+#### StatefulSet (default)
+
+- **Behavior**: The controller maintains a fixed number of pods according to the
+  `replicas` field.
+- **Use when**: A fixed or scalable number of Slurm worker pods is needed.
+  Scale-to-zero and horizontal autoscaling (e.g. HPA) apply to this mode.
+- **Note**: Each pod has a stable identity (e.g. ordinal-based naming)
+
+#### DaemonSet
+
+- **Behavior**: The controller schedules one pod per Kubernetes node that
+  matches the NodeSet's pod template (e.g. `nodeSelector`, `tolerations`). Pod
+  count follows the number of matching nodes. Adding or removing nodes
+  automatically adds or removes pods.
+- **Use when**: 1:1 alignment between Kubernetes and Slurm (slurmd) nodes is
+  needed.
+- **Note**: The `replicas` field is ignored. Pod identity is tied to the node
+  (e.g. node name) rather than an ordinal.
+
+The operator supports NodeSet scale to zero, scaling the resource down to zero
+replicas. Hence, any Horizontal Pod Autoscaler (HPA) that also support scale to
+zero can be best paired with NodeSets.
+
+NodeSets can be resolved by hostname. This enables hostname-based resolution
+between login pods and worker pods, enabling direct pod-to-pod communication
+using predictable hostnames (e.g., `cpu-1-0`, `gpu-2-1`).
+
+### LoginSets
+
+A set of homogeneous login nodes (submit node, jump host) for Slurm, which
+manage user identity via SSSD.
+
+The operator supports LoginSet scale to zero, scaling the resource down to zero
+replicas. Hence, any Horizontal Pod Autoscaler (HPA) that also support scale to
+zero can be best paired with LoginSets.
+
+### Hybrid Support
+
+Sometimes a Slurm cluster has some, but not all, of its components in
+Kubernetes. The operator and its CRDs are designed support these use cases.
+
+### Slurm
+
+Slurm is a full featured HPC workload manager. To highlight a few features:
+
+- [**Accounting**][slurm-accounting]: collect accounting information for every
+  job and job step executed.
+- [**Partitions**][slurm-arch]: job queues with sets of resources and
+  constraints (e.g. job size limit, job time limit, users permitted).
+- [**Reservations**][slurm-reservations]: reserve resources for jobs being
+  executed by select users and/or select accounts.
+- [**Job Dependencies**][slurm-dependency]: defer the start of jobs until the
+  specified dependencies have been satisfied.
+- [**Job Containers**][slurm-containers]: jobs which run an unprivileged OCI
+  container bundle.
+- [**MPI**][slurm-mpi]: launch parallel MPI jobs, supports various MPI
+  implementations.
+- [**Priority**][slurm-priority]: assigns priorities to jobs upon submission and
+  on an ongoing basis (e.g. as they age).
+- [**Preemption**][slurm-preempt]: stop one or more low-priority jobs to let a
+  high-priority job run.
+- [**QoS**][slurm-qos]: sets of policies affecting scheduling priority,
+  preemption, and resource limits.
+- [**Fairshare**][slurm-fairshare]: distribute resources equitably among users
+  and accounts based on historical usage.
+- [**Node Health Check**][slurm-healthcheck]: periodically check node health via
+  script.
+
+## Compatibility
+
+| Software   |                             Minimum Version                              |
+| :--------- | :----------------------------------------------------------------------: |
+| Kubernetes | [v1.29](https://kubernetes.io/blog/2023/12/13/kubernetes-v1-29-release/) |
+| Slurm      | [25.11](https://www.schedmd.com/slurm-version-25-11-0-is-now-available/) |
+| Cgroup     |         [v2](https://docs.kernel.org/admin-guide/cgroup-v2.html)         |
+
+## Quick Start
+
+Install the [cert-manager] with its CRDs:
+
+```sh
+helm install \
+  cert-manager oci://quay.io/jetstack/charts/cert-manager \
+  --namespace cert-manager --create-namespace \
+  --set crds.enabled=true
+```
+
+Install the slurm-operator and its CRDs:
+
+```sh
+helm install slurm-operator-crds oci://ghcr.io/slinkyproject/charts/slurm-operator-crds
+helm install slurm-operator oci://ghcr.io/slinkyproject/charts/slurm-operator \
+  --namespace=slinky --create-namespace
+```
+
+Install a Slurm cluster:
+
+```sh
+helm install slurm oci://ghcr.io/slinkyproject/charts/slurm \
+  --namespace=slurm --create-namespace
+```
+
+For additional instructions, see the [installation] guide.
+
+## Upgrades
+
+Slinky versions are expressed as **X.Y.Z**, where **X** is the major version,
+**Y** is the minor version, and **Z** is the patch version, following
+[Semantic Versioning][semver] terminology.
+
+See [versioning] for more details.
+
+### 1.Y Releases
+
+New Slinky versions may update the Slinky [CRDs] with new fields and deprecate
+old ones. During CRD version changes (e.g. `v1beta1` => `v1beta2`), deprecated
+fields may be removed. Through the Kubernetes API, CRD versions are
+automatically converted to the stored version. Therefore old CRD versions will
+still work, but it is recommended to use the new CRD version as indicated by the
+installed Slinky CRDs.
+
+To upgrade between Slinky `v1.Y` versions (e.g. `v1.0.Z` => `v1.1.Z`), upgrade
+the slurm-operator-crds chart followed by the slurm-operator chart, or both at
+the same time by upgrading the slurm-operator chart when using
+`crds.enabled=true`.
+
+```bash
+helm upgrade slurm-operator-crds oci://ghcr.io/slinkyproject/charts/slurm-operator-crds \
+  --version $SLINKY_VERSION
+helm upgrade slurm-operator oci://ghcr.io/slinkyproject/charts/slurm-operator \
+  --namespace slinky --version $SLINKY_VERSION
+```
+
+All Slurm charts may remain on the old Slinky release series (e.g. `v1.0.x`)
+despite the slurm-operator and its CRDs being on a newer Slinky release series
+(e.g. `v1.1.x`). It is still recommended to upgrade Slurm charts to the new
+Slinky release series coinciding with the slurm-operator's Slinky release series
+to make use of the new fields, features, and functionality.
+
+Please review changes made to the CRDs and the Slurm chart. Update your
+`values.yaml` appropriately and upgrade the Slurm chart.
+
+```sh
+helm upgrade slurm oci://ghcr.io/slinkyproject/charts/slurm \
+  --namespace slurm --version $SLINKY_VERSION
+```
+
+### 0.Y Releases
+
+Breaking changes may be introduced into existing Slinky [CRDs] versions. To
+upgrade between `v0.Y` versions (e.g. `v0.1.Z` => `v0.2.Z`), uninstall all
+Slinky charts and delete Slinky CRDs, then install the new release like normal.
+
+```bash
+helm --namespace=slurm uninstall slurm
+helm --namespace=slinky uninstall slurm-operator
+helm uninstall slurm-operator-crds
+```
+
+If the CRDs were not installed via `slurm-operator-crds` helm chart:
+
+```bash
+kubectl delete customresourcedefinitions.apiextensions.k8s.io accountings.slinky.slurm.net
+kubectl delete customresourcedefinitions.apiextensions.k8s.io clusters.slinky.slurm.net # defunct
+kubectl delete customresourcedefinitions.apiextensions.k8s.io loginsets.slinky.slurm.net
+kubectl delete customresourcedefinitions.apiextensions.k8s.io nodesets.slinky.slurm.net
+kubectl delete customresourcedefinitions.apiextensions.k8s.io restapis.slinky.slurm.net
+kubectl delete customresourcedefinitions.apiextensions.k8s.io tokens.slinky.slurm.net
+```
+
+## Documentation
+
+Project documentation is located in the docs directory of this repository.
+
+[Slinky documentation][slinky-docs] is hosted on the web.
+
+## Support and Development
+
+Feature requests, code contributions, and bug reports are welcome!
+
+Github/Gitlab submitted issues and PRs/MRs are handled on a best effort basis.
+
+The SchedMD official issue tracker is at <https://support.schedmd.com/>.
+
+To schedule a demo or simply to reach out, please
+[contact SchedMD][contact-schedmd].
+
+## License
+
+Copyright (C) SchedMD LLC.
+
+Licensed under the
+[Apache License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0) you
+may not use project except in compliance with the license.
+
+Unless required by applicable law or agreed to in writing, software distributed
+under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+CONDITIONS OF ANY KIND, either express or implied. See the License for the
+specific language governing permissions and limitations under the License.
+
+<!-- links -->
+
+[architecture]: ./docs/concepts/architecture.md
+[cert-manager]: https://cert-manager.io/docs/installation/helm/
+[contact-schedmd]: https://www.schedmd.com/slurm-resources/contact-schedmd/
+[crds]: https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/#customresourcedefinitions
+[custom-controllers]: https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/#custom-controllers
+[installation]: ./docs/installation.md
+[kubernetes]: https://kubernetes.io/
+[schedmd]: https://schedmd.com/
+[semver]: https://semver.org/
+[slinky]: https://slinky.ai/
+[slinky-docs]: https://slinky.schedmd.com/
+[slurm]: https://slurm.schedmd.com/overview.html
+[slurm-accounting]: https://slurm.schedmd.com/accounting.html
+[slurm-arch]: https://slurm.schedmd.com/quickstart.html#arch
+[slurm-containers]: https://slurm.schedmd.com/containers.html
+[slurm-dependency]: https://slurm.schedmd.com/sbatch.html#OPT_dependency
+[slurm-docs]: ./docs/concepts/slurm.md
+[slurm-drain]: https://slurm.schedmd.com/scontrol.html#OPT_DRAIN
+[slurm-fairshare]: https://slurm.schedmd.com/fair_tree.html
+[slurm-ha]: https://slurm.schedmd.com/quickstart_admin.html#HA
+[slurm-healthcheck]: https://slurm.schedmd.com/slurm.conf.html#OPT_HealthCheckProgram
+[slurm-mpi]: https://slurm.schedmd.com/mpi_guide.html
+[slurm-preempt]: https://slurm.schedmd.com/preempt.html
+[slurm-priority]: https://slurm.schedmd.com/priority_multifactor.html
+[slurm-qos]: https://slurm.schedmd.com/qos.html
+[slurm-reservations]: https://slurm.schedmd.com/reservations.html
+[versioning]: ./docs/versioning.md

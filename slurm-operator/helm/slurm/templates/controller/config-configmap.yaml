@@ -1,0 +1,19 @@
+{{- /*
+SPDX-FileCopyrightText: Copyright (C) SchedMD LLC.
+SPDX-License-Identifier: Apache-2.0
+*/}}
+
+{{- if .Values.configFiles -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "slurm.controller.configName" . }}
+  namespace: {{ include "slurm.namespace" . }}
+  labels:
+    {{- include "slurm.labels" . | nindent 4 }}
+data:
+  {{- range $key, $content := .Values.configFiles }}
+  {{ $key -}}: |
+    {{- $content | nindent 4 }}
+  {{- end }}{{- /* range $key, $content := .Values.configFiles */}}
+{{- end }}{{- /* if .Values.configFiles */}}

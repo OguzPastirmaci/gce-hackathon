@@ -1,0 +1,15 @@
+{{- /*
+SPDX-FileCopyrightText: Copyright (C) SchedMD LLC.
+SPDX-License-Identifier: Apache-2.0
+*/}}
+
+{{- if and .Values.priorityClass.enabled .Values.priorityClass.create }}
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: {{ include "slurm.priorityClassName" . }}
+description: {{ .Values.priorityClass.description }}
+value: {{ .Values.priorityClass.value }}
+globalDefault: false
+preemptionPolicy: {{ .Values.priorityClass.preemptionPolicy }}
+{{- end }}{{- /* if and .Values.priorityClass.enabled .Values.priorityClass.create */}}

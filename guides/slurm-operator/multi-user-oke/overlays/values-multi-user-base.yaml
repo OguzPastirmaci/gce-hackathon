@@ -1,0 +1,74 @@
+# Multi-user access overlay for the OKE Slurm guide.
+#
+# This is a merge template, not a blind overlay.
+#
+# Helm replaces lists. If your active OKE values already define lists such as
+# nodesets.<name>.slurmd.volumeMounts or nodesets.<name>.podSpec.volumes, copy
+# the `home` entries into those existing lists. Do not apply this file as a
+# second `-f` file to RDMA values unless you have merged the lists first.
+
+sssd:
+  # Preferred production path: SSSD backed by LDAP, FreeIPA, or AD.
+  secretRef:
+    name: site-sssd-conf
+    key: sssd.conf
+
+controller:
+  extraConfMap:
+    # Keep existing values such as GresTypes, ReturnToService, and
+    # PropagateResourceLimitsExcept when merging.
+    AccountingStorageEnforce: "associations,limits,qos"
+
+loginsets:
+  slinky:
+    enabled: true
+    replicas: 1
+    # Use real user SSH through SSSD. Keep rootSshAuthorizedKeys only as a
+    # break-glass path if your security policy allows it.
+    extraSshdConfig: |
+      AuthorizedKeysCommand /usr/bin/sss_ssh_authorizedkeys
+      AuthorizedKeysCommandUser nobody
+      PasswordAuthentication no
+    login:
+      volumeMounts:
+        - name: home
+          mountPath: /home
+    podSpec:
+      volumes:
+        - name: home
+          nfs:
+            server: <fss-mount-target-ip-or-dns>
+            path: /slurm-home
+    service:
+      spec:
+        type: LoadBalancer
+
+nodesets:
+  # Rename this key to each active NodeSet if needed. For the current OKE test
+  # cluster, the GPU nodes are BM.GPU4.8 and the existing NodeSet key is gpu-b4.
+  gpu-b4:
+    slurmd:
+      volumeMounts:
+        # Preserve existing mounts such as devinf and shm.
+        - name: home
+          mountPath: /home
+    podSpec:
+      nodeSelector:
+        node.kubernetes.io/instance-type: BM.GPU4.8
+      volumes:
+        # Preserve existing volumes such as devinf and shm.
+        - name: home
+          nfs:
+            server: <fss-mount-target-ip-or-dns>
+            path: /slurm-home
+
+accounting:
+  enabled: true
+  storageConfig:
+    host: mariadb
+    port: 3306
+    database: slurm_acct_db
+    username: slurm
+    passwordKeyRef:
+      name: mariadb-password
+      key: password

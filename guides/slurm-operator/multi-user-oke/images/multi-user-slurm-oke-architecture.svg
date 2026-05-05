@@ -1,0 +1,168 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="900" viewBox="0 0 1400 900" role="img" aria-labelledby="title desc">
+  <title id="title">Multi-user Slurm on OKE architecture</title>
+  <desc id="desc">Simplified architecture diagram for Slurm on OKE with SSH login, SSSD identity lookups, HA OpenLDAP primary and read replicas, OCI FSS home directories, and Slurm accounting.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M2,2 L10,6 L2,10 Z" fill="#334155"/>
+    </marker>
+    <marker id="arrowPurple" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M2,2 L10,6 L2,10 Z" fill="#7c3aed"/>
+    </marker>
+    <marker id="arrowGreen" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M2,2 L10,6 L2,10 Z" fill="#16a34a"/>
+    </marker>
+    <marker id="arrowOrange" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M2,2 L10,6 L2,10 Z" fill="#ea580c"/>
+    </marker>
+    <style>
+      .bg { fill: #f8fafc; }
+      .panel { fill: #ffffff; stroke: #cbd5e1; stroke-width: 2; rx: 18; }
+      .title { fill: #0f172a; font: 800 32px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      .subtitle { fill: #475569; font: 500 15px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      .panel-title { fill: #0f172a; font: 700 20px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      .box-title { fill: #0f172a; font: 700 16px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; text-anchor: middle; }
+      .box-text { fill: #334155; font: 500 13px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; text-anchor: middle; }
+      .small { fill: #475569; font: 600 12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      .persona { fill: #e0f2fe; stroke: #0284c7; stroke-width: 2; rx: 14; }
+      .service { fill: #f8fafc; stroke: #64748b; stroke-width: 2; rx: 14; }
+      .slurm { fill: #ede9fe; stroke: #7c3aed; stroke-width: 2; rx: 14; }
+      .identity { fill: #dcfce7; stroke: #16a34a; stroke-width: 2; rx: 14; }
+      .storage { fill: #ffedd5; stroke: #ea580c; stroke-width: 2; rx: 14; }
+      .database { fill: #fee2e2; stroke: #dc2626; stroke-width: 2; rx: 14; }
+      .solid { fill: none; stroke: #334155; stroke-width: 2.6; marker-end: url(#arrow); }
+      .lookup { fill: none; stroke: #7c3aed; stroke-width: 2.6; stroke-dasharray: 9 7; marker-end: url(#arrowPurple); }
+      .replication { fill: none; stroke: #16a34a; stroke-width: 2.6; stroke-dasharray: 4 6; marker-end: url(#arrowGreen); }
+      .home { fill: none; stroke: #ea580c; stroke-width: 2.6; marker-end: url(#arrowOrange); }
+      .label { fill: #334155; font: 700 12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; text-anchor: middle; dominant-baseline: middle; }
+      .label-bg { fill: #ffffff; stroke: #e2e8f0; stroke-width: 1; rx: 10; }
+      .legend-line { stroke-width: 2.6; fill: none; }
+    </style>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1400" height="900"/>
+  <text class="title" x="48" y="54">Multi-User Slurm on OKE</text>
+  <text class="subtitle" x="48" y="82">Simplified flow: SSH users, Slurm pods, HA OpenLDAP identity, FSS homes, and Slurm accounting</text>
+
+  <rect class="panel" x="292" y="126" width="548" height="638"/>
+  <text class="panel-title" x="324" y="164">Slurm namespace</text>
+  <text class="subtitle" x="324" y="188">Access, scheduling, workers, identity clients, and accounting</text>
+
+  <rect class="panel" x="888" y="126" width="464" height="392"/>
+  <text class="panel-title" x="920" y="164">Identity namespace</text>
+  <text class="subtitle" x="920" y="188">OpenLDAP primary with read replicas</text>
+
+  <rect class="panel" x="888" y="558" width="464" height="206"/>
+  <text class="panel-title" x="920" y="596">Shared state</text>
+  <text class="subtitle" x="920" y="620">Home directories and Slurm accounting storage</text>
+
+  <g id="connectors">
+    <path class="solid" d="M238 264 H334"/>
+    <path class="solid" d="M512 264 H560"/>
+    <path class="solid" d="M659 312 V360"/>
+    <path class="solid" d="M659 456 V500"/>
+    <path class="solid" d="M659 456 V546"/>
+    <path class="solid" d="M768 602 H858 V693 H1136"/>
+    <path class="solid" d="M238 622 H268 V748 H858 V401 H910"/>
+    <path class="solid" d="M1100 401 H1136"/>
+    <path class="lookup" d="M534 410 H858 V261 H910"/>
+    <path class="home" d="M439 638 V693 H920"/>
+    <path class="replication" d="M1218 392 V410"/>
+  </g>
+
+  <rect class="persona" x="48" y="220" width="190" height="88"/>
+  <text class="box-title" x="143" y="256">User SSH client</text>
+  <text class="box-text" x="143" y="280">alice</text>
+  <text class="box-text" x="143" y="300">ssh, sbatch, sacct</text>
+
+  <rect class="persona" x="48" y="568" width="190" height="110"/>
+  <text class="box-title" x="143" y="604">Admin workflow</text>
+  <text class="box-text" x="143" y="628">LDAP users/groups</text>
+  <text class="box-text" x="143" y="648">FSS home setup</text>
+  <text class="box-text" x="143" y="668">Slurm associations</text>
+
+  <rect class="service" x="344" y="226" width="168" height="76"/>
+  <text class="box-title" x="428" y="260">Login Service</text>
+  <text class="box-text" x="428" y="282">LoadBalancer</text>
+
+  <rect class="slurm" x="560" y="216" width="198" height="96"/>
+  <text class="box-title" x="659" y="254">LoginSet pod</text>
+  <text class="box-text" x="659" y="278">sshd + Slurm CLI</text>
+  <text class="box-text" x="659" y="298">user shell</text>
+
+  <rect class="slurm" x="560" y="360" width="198" height="96"/>
+  <text class="box-title" x="659" y="398">Controller pod</text>
+  <text class="box-text" x="659" y="422">slurmctld</text>
+  <text class="box-text" x="659" y="442">NSS + SSSD sidecar</text>
+
+  <rect class="slurm" x="344" y="360" width="190" height="92"/>
+  <text class="box-title" x="439" y="394">SSSD clients</text>
+  <text class="box-text" x="439" y="418">login, controller,</text>
+  <text class="box-text" x="439" y="438">and worker pods</text>
+
+  <rect class="slurm" x="344" y="500" width="190" height="138"/>
+  <text class="box-title" x="439" y="538">Worker pods</text>
+  <text class="box-text" x="439" y="562">slurmd + SSSD</text>
+  <text class="box-text" x="439" y="582">BM.GPU4.8</text>
+  <text class="box-text" x="439" y="602">GPU + SR-IOV VFs</text>
+  <text class="box-text" x="439" y="622">no hostNetwork</text>
+
+  <rect class="slurm" x="560" y="546" width="198" height="96"/>
+  <text class="box-title" x="659" y="584">SlurmDBD</text>
+  <text class="box-text" x="659" y="608">accounts, QOS,</text>
+  <text class="box-text" x="659" y="628">limits, TRES</text>
+
+  <rect class="service" x="920" y="222" width="180" height="78"/>
+  <text class="box-title" x="1010" y="252">openldap-read</text>
+  <text class="box-text" x="1010" y="276">SSSD reads from</text>
+  <text class="box-text" x="1010" y="294">primary + replicas</text>
+
+  <rect class="service" x="920" y="362" width="180" height="78"/>
+  <text class="box-title" x="1010" y="398">openldap-primary</text>
+  <text class="box-text" x="1010" y="420">writes only</text>
+
+  <rect class="identity" x="1136" y="320" width="170" height="86"/>
+  <text class="box-title" x="1221" y="356">openldap-0</text>
+  <text class="box-text" x="1221" y="380">writable primary</text>
+  <text class="box-text" x="1221" y="400">authoritative DB</text>
+
+  <rect class="identity" x="1136" y="434" width="170" height="68"/>
+  <text class="box-title" x="1221" y="464">openldap-1/2</text>
+  <text class="box-text" x="1221" y="486">read replicas</text>
+
+  <rect class="storage" x="920" y="652" width="170" height="82"/>
+  <text class="box-title" x="1005" y="688">OCI FSS</text>
+  <text class="box-text" x="1005" y="712">/home/$USER</text>
+
+  <rect class="database" x="1136" y="652" width="170" height="82"/>
+  <text class="box-title" x="1221" y="688">MariaDB</text>
+  <text class="box-text" x="1221" y="712">Slurm accounting</text>
+
+  <rect class="label-bg" x="254" y="246" width="38" height="22"/>
+  <text class="label" x="273" y="257">SSH</text>
+  <rect class="label-bg" x="532" y="246" width="40" height="22"/>
+  <text class="label" x="552" y="257">login</text>
+  <rect class="label-bg" x="674" y="480" width="36" height="22"/>
+  <text class="label" x="692" y="491">jobs</text>
+  <rect class="label-bg" x="774" y="584" width="72" height="22"/>
+  <text class="label" x="810" y="595">accounting</text>
+  <rect class="label-bg" x="774" y="394" width="86" height="22"/>
+  <text class="label" x="817" y="405">SSSD lookup</text>
+  <rect class="label-bg" x="770" y="676" width="84" height="22"/>
+  <text class="label" x="812" y="687">home mount</text>
+  <rect class="label-bg" x="286" y="734" width="84" height="22"/>
+  <text class="label" x="328" y="745">admin write</text>
+  <rect class="label-bg" x="1112" y="386" width="42" height="22"/>
+  <text class="label" x="1133" y="397">write</text>
+  <rect class="label-bg" x="1232" y="406" width="62" height="22"/>
+  <text class="label" x="1263" y="417">syncrepl</text>
+
+  <rect class="service" x="48" y="790" width="1220" height="62"/>
+  <line class="legend-line" x1="82" y1="822" x2="142" y2="822" stroke="#334155" marker-end="url(#arrow)"/>
+  <text class="small" x="154" y="827">SSH, Slurm control, admin writes, and accounting</text>
+  <line class="legend-line" x1="496" y1="822" x2="556" y2="822" stroke="#7c3aed" stroke-dasharray="9 7" marker-end="url(#arrowPurple)"/>
+  <text class="small" x="568" y="827">SSSD identity lookup</text>
+  <line class="legend-line" x1="820" y1="822" x2="880" y2="822" stroke="#ea580c" marker-end="url(#arrowOrange)"/>
+  <text class="small" x="892" y="827">FSS home mount</text>
+  <line class="legend-line" x1="1080" y1="822" x2="1140" y2="822" stroke="#16a34a" stroke-dasharray="4 6" marker-end="url(#arrowGreen)"/>
+  <text class="small" x="1152" y="827">LDAP replication</text>
+</svg>

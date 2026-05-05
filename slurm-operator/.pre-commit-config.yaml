@@ -1,0 +1,149 @@
+---
+default_install_hook_types:
+  - pre-commit
+  - commit-msg
+default_stages:
+  - pre-commit
+fail_fast: true
+exclude: .helm_ls_cache|boilerplate\..*|.*\.gen\..*|.*\.gotmpl$
+repos:
+  - repo: local
+    hooks:
+      - id: commitlint
+        name: commitlint
+        entry: commitlint/commitlint:edge
+        args:
+          - --config=commitlint.config.ts
+          - --edit
+          - --strict
+        language: docker_image
+        pass_filenames: false
+        stages: [commit-msg]
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-merge-conflict
+      - id: check-executables-have-shebangs
+      - id: check-shebang-scripts-are-executable
+      - id: check-json
+      - id: check-yaml
+        args:
+          - --allow-multiple-documents
+        exclude: ^config/|^helm/.*/templates/
+      - id: check-symlinks
+      - id: check-added-large-files
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+        exclude: helm/.*/README.md$
+      - id: detect-private-key
+  - repo: https://github.com/executablebooks/mdformat
+    rev: 0.7.22
+    hooks:
+      - id: mdformat
+        args:
+          - --wrap=80
+        exclude: ^helm/.*/README\.md|^\.github/ISSUE_TEMPLATE/.*
+        additional_dependencies:
+          - mdformat-toc
+          - mdformat-tables
+          - mdformat-gfm-alerts
+  - repo: https://github.com/codespell-project/codespell
+    rev: v2.4.1
+    hooks:
+      - id: codespell
+        args: [--write-changes]
+  - repo: https://github.com/jumanjihouse/pre-commit-hook-yamlfmt
+    rev: 0.2.3
+    hooks:
+      - id: yamlfmt
+        args:
+          - --mapping=2
+          - --sequence=4
+          - --offset=2
+          - --preserve-quotes
+          - --preserve_null
+        exclude: ^config/|^helm/.*/(files|templates)/
+  - repo: https://github.com/pecigonzalo/pre-commit-shfmt
+    rev: v2.2.0
+    hooks:
+      - id: shell-fmt-go
+        args:
+          - -w
+          - -s
+          - -l
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.11.0.1
+    hooks:
+      - id: shellcheck
+        args:
+          - --severity=warning
+  - repo: https://github.com/tekwizely/pre-commit-golang
+    rev: v1.0.0-rc.4
+    hooks:
+      - id: go-fmt
+      - id: go-mod-tidy
+      - id: go-vet-mod
+      - id: go-build-mod
+  - repo: local
+    hooks:
+      - id: version-match
+        name: Version Match
+        entry: make version-match
+        language: system
+        require_serial: true
+        pass_filenames: false
+      # https://github.com/norwoodj/helm-docs/blob/master/.pre-commit-hooks.yaml
+      - id: make-helm-docs
+        name: make-helm-docs
+        entry: make helm-docs
+        files: (README\.md\.gotmpl|(Chart|requirements|values)\.yaml)$
+        language: system
+        require_serial: true
+        pass_filenames: false
+      - id: make-helm-validate
+        name: Make Helm Validate
+        entry: make helm-validate
+        types: [yaml]
+        files: ^helm/
+        language: system
+        pass_filenames: false
+      - id: make-helm-unittest
+        name: Make Helm Unittest
+        entry: make helm-unittest
+        files: ^helm/
+        language: system
+        pass_filenames: false
+      # https://github.com/golangci/golangci-lint/blob/main/.pre-commit-hooks.yaml
+      - id: make-golangci-lint
+        name: make-golangci-lint
+        entry: make golangci-lint
+        types: [go]
+        language: system
+        require_serial: true
+        pass_filenames: false
+      # https://github.com/golangci/golangci-lint/blob/main/.pre-commit-hooks.yaml
+      - id: make-golangci-lint-fmt
+        name: make-golangci-lint-fmt
+        entry: make golangci-lint-fmt
+        types: [go]
+        language: system
+        require_serial: true
+        pass_filenames: false
+      - id: make-manifests
+        name: Make Manifests
+        entry: make manifests
+        types: [go]
+        language: system
+        pass_filenames: false
+      - id: make-generate
+        name: Make Generate
+        entry: make generate
+        types: [go]
+        language: system
+        pass_filenames: false
+      - id: make-generate-docs
+        name: Make Generate Docs
+        entry: make generate-docs
+        language: system
+        pass_filenames: false
+        require_serial: true
