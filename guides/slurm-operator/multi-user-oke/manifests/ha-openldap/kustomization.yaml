@@ -1,0 +1,10 @@
+resources:
+  - namespace.yaml
+  - secrets.yaml
+  - configmap.yaml
+  - services.yaml
+  - statefulset.yaml
+  - bootstrap-job.yaml
+  - sssd-secret.yaml
+  - pdb.yaml
+  - networkpolicy.yaml

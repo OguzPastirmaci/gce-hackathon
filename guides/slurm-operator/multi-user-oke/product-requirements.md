@@ -326,6 +326,27 @@ P0 operational caution:
   overlay that replaces `volumeMounts` or `volumes` and drops RDMA or FSS
   mounts.
 
+## Topology Requirements
+
+P1 requirements:
+
+- Support Slurm Operator topology propagation for worker NodeSet pods.
+- Kubernetes nodes can carry `topology.slinky.slurm.net/spec` annotations that
+  map the scheduled worker pod to Slurm topology names.
+- A matching `topology.yaml` can be supplied through Slurm config files so
+  Slurm can place multi-node jobs with topology awareness.
+- On OKE GPU/RDMA clusters, topology should represent real placement domains
+  such as RDMA leaf, network block, or HPC island when those labels are
+  available.
+- Topology support must not require `hostNetwork`, must not remove SR-IOV VFs,
+  and must not rely on static socket/core/thread hardware topology as a GPU
+  autodetect workaround.
+
+Related implementation docs:
+
+- `slurm-operator/docs/usage/topology.md`
+- `guides/slurm-operator/deploying-slinky-on-oke.md`
+
 ## Controller SSSD/NSS Requirement
 
 Current status:

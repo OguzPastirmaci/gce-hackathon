@@ -1,0 +1,57 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: openldap-bootstrap
+  namespace: identity
+  labels:
+    app.kubernetes.io/name: openldap
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: ldapadd
+          image: docker.io/osixia/openldap:1.5.0
+          env:
+            - name: LDAP_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: openldap-credentials
+                  key: adminPassword
+          command:
+            - /bin/bash
+            - -lc
+            - |
+              set -euo pipefail
+
+              for _ in $(seq 1 120); do
+                if ldapsearch -x -H ldap://openldap-primary.identity.svc.cluster.local:389 \
+                  -D cn=admin,dc=example,dc=org -w "$LDAP_ADMIN_PASSWORD" \
+                  -b dc=example,dc=org -s base dn >/dev/null 2>&1; then
+                  break
+                fi
+                sleep 2
+              done
+
+              if ldapsearch -x -H ldap://openldap-primary.identity.svc.cluster.local:389 \
+                -D cn=admin,dc=example,dc=org -w "$LDAP_ADMIN_PASSWORD" \
+                -b uid=alice,ou=People,dc=example,dc=org -s base uid >/dev/null 2>&1; then
+                echo "Bootstrap data already exists"
+                exit 0
+              fi
+
+              ldapadd -x -H ldap://openldap-primary.identity.svc.cluster.local:389 \
+                -D cn=admin,dc=example,dc=org -w "$LDAP_ADMIN_PASSWORD" \
+                -f /ldif/bootstrap.ldif
+          volumeMounts:
+            - name: bootstrap
+              mountPath: /ldif
+              readOnly: true
+      volumes:
+        - name: bootstrap
+          configMap:
+            name: openldap-ha-scripts
+            items:
+              - key: bootstrap.ldif
+                path: bootstrap.ldif

@@ -1,0 +1,47 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: openldap-headless
+  namespace: identity
+  labels:
+    app.kubernetes.io/name: openldap
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    app.kubernetes.io/name: openldap
+  ports:
+    - name: ldap
+      port: 389
+      targetPort: ldap
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: openldap-primary
+  namespace: identity
+  labels:
+    app.kubernetes.io/name: openldap
+spec:
+  selector:
+    app.kubernetes.io/name: openldap
+    statefulset.kubernetes.io/pod-name: openldap-0
+  ports:
+    - name: ldap
+      port: 389
+      targetPort: ldap
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: openldap-read
+  namespace: identity
+  labels:
+    app.kubernetes.io/name: openldap
+spec:
+  selector:
+    app.kubernetes.io/name: openldap
+  ports:
+    - name: ldap
+      port: 389
+      targetPort: ldap

@@ -913,6 +913,53 @@ slurm-home                            Bound fss-pv 50Gi RWX
 slurm-login-slinky                    LoadBalancer 192.9.181.77
 ```
 
+## HA OpenLDAP StatefulSet Test
+
+Added and tested the HA OpenLDAP manifest set:
+
+```text
+guides/slurm-operator/multi-user-oke/manifests/ha-openldap/
+```
+
+Deployment commands used on the operator node:
+
+```bash
+export PATH=/home/ubuntu/bin:$PATH
+export OCI_CLI_AUTH=instance_principal
+
+kubectl apply -k /tmp/gce-hackathon-guides/slurm-operator/multi-user-oke/manifests/ha-openldap
+kubectl -n identity rollout status statefulset/openldap --timeout=10m
+kubectl -n identity wait --for=condition=complete job/openldap-bootstrap --timeout=5m
+```
+
+Initial rollout exposed one issue: only `/var/lib/ldap` was persisted. On pod
+replacement, `openldap-2` failed because the image found an existing data
+directory but an empty `/etc/ldap/slapd.d` config directory. Fixed the manifest
+by adding a second PVC template, `ldap-config`, mounted at
+`/etc/ldap/slapd.d`.
+
+Final HA LDAP state:
+
+```text
+openldap-0 1/1 Running primary
+openldap-1 1/1 Running read replica
+openldap-2 1/1 Running read replica
+openldap-bootstrap Completed
+ldap-data-openldap-{0,1,2}   Bound oci-bv
+ldap-config-openldap-{0,1,2} Bound oci-bv
+```
+
+Validation results:
+
+- `sssd-reader` can read `alice` from `openldap-0`, `openldap-1`, and
+  `openldap-2`;
+- adding `bob` through `openldap-0` replicated to both replicas;
+- adding `carol` through `openldap-primary.identity.svc.cluster.local`
+  replicated to both replicas;
+- direct write to `openldap-1` failed with LDAP `53 operation restricted`;
+- deleting `openldap-2` recreated the pod with zero restarts and data still
+  readable.
+
 Confirmed the accounting association is still present:
 
 ```text

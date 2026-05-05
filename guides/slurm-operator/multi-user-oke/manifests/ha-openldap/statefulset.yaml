@@ -1,0 +1,90 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: openldap
+  namespace: identity
+  labels:
+    app.kubernetes.io/name: openldap
+spec:
+  serviceName: openldap-headless
+  replicas: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: openldap
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: openldap
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: openldap
+          image: docker.io/osixia/openldap:1.5.0
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/bash
+            - /opt/openldap-ha/start.sh
+          env:
+            - name: LDAP_ORGANISATION
+              value: Slurm Identity
+            - name: LDAP_DOMAIN
+              value: example.org
+            - name: LDAP_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: openldap-credentials
+                  key: adminPassword
+            - name: LDAP_CONFIG_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: openldap-credentials
+                  key: configPassword
+            - name: LDAP_TLS
+              value: "false"
+            - name: LDAP_REMOVE_CONFIG_AFTER_SETUP
+              value: "false"
+          ports:
+            - name: ldap
+              containerPort: 389
+          readinessProbe:
+            tcpSocket:
+              port: ldap
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: ldap
+            initialDelaySeconds: 60
+            periodSeconds: 20
+          volumeMounts:
+            - name: scripts
+              mountPath: /opt/openldap-ha
+              readOnly: true
+            - name: ldap-data
+              mountPath: /var/lib/ldap
+            - name: ldap-config
+              mountPath: /etc/ldap/slapd.d
+      volumes:
+        - name: scripts
+          configMap:
+            name: openldap-ha-scripts
+            defaultMode: 0755
+  volumeClaimTemplates:
+    - metadata:
+        name: ldap-data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: oci-bv
+        resources:
+          requests:
+            storage: 20Gi
+    - metadata:
+        name: ldap-config
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: oci-bv
+        resources:
+          requests:
+            storage: 5Gi

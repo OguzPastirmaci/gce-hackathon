@@ -26,7 +26,8 @@
       .persona { fill: #e0f2fe; stroke: #0284c7; stroke-width: 2; rx: 14; }
       .service { fill: #f8fafc; stroke: #64748b; stroke-width: 2; rx: 14; }
       .slurm { fill: #ede9fe; stroke: #7c3aed; stroke-width: 2; rx: 14; }
-      .identity { fill: #dcfce7; stroke: #16a34a; stroke-width: 2; rx: 14; }
+      .identity-pod { fill: #f8fafc; stroke: #64748b; stroke-width: 2; rx: 14; }
+      .identity-accent { fill: #16a34a; opacity: 0.9; }
       .storage { fill: #ffedd5; stroke: #ea580c; stroke-width: 2; rx: 14; }
       .database { fill: #fee2e2; stroke: #dc2626; stroke-width: 2; rx: 14; }
       .solid { fill: none; stroke: #334155; stroke-width: 2.6; marker-end: url(#arrow); }
@@ -120,12 +121,14 @@
   <text class="box-title" x="1010" y="398">openldap-primary</text>
   <text class="box-text" x="1010" y="420">writes only</text>
 
-  <rect class="identity" x="1136" y="320" width="170" height="86"/>
+  <rect class="identity-pod" x="1136" y="320" width="170" height="86"/>
+  <rect class="identity-accent" x="1136" y="320" width="8" height="86" rx="4"/>
   <text class="box-title" x="1221" y="356">openldap-0</text>
   <text class="box-text" x="1221" y="380">writable primary</text>
   <text class="box-text" x="1221" y="400">authoritative DB</text>
 
-  <rect class="identity" x="1136" y="434" width="170" height="68"/>
+  <rect class="identity-pod" x="1136" y="434" width="170" height="68"/>
+  <rect class="identity-accent" x="1136" y="434" width="8" height="68" rx="4"/>
   <text class="box-title" x="1221" y="464">openldap-1/2</text>
   <text class="box-text" x="1221" y="486">read replicas</text>
 

@@ -1,0 +1,164 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: openldap-ha-scripts
+  namespace: identity
+data:
+  start.sh: |
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    export LDAP_ADMIN_PASSWORD="${LDAP_ADMIN_PASSWORD:?LDAP_ADMIN_PASSWORD is required}"
+
+    HOSTNAME="$(hostname)"
+    ORDINAL="${HOSTNAME##*-}"
+    ROLE="replica"
+    if [ "$ORDINAL" = "0" ]; then
+      ROLE="primary"
+    fi
+
+    echo "Starting OpenLDAP pod ${HOSTNAME} as ${ROLE}"
+
+    /container/tool/run --copy-service &
+    LDAP_PID="$!"
+
+    trap 'kill -TERM "$LDAP_PID" 2>/dev/null || true; wait "$LDAP_PID" 2>/dev/null || true' TERM INT
+
+    wait_for_local_slapd() {
+      for _ in $(seq 1 90); do
+        if ldapsearch -Y EXTERNAL -H ldapi:/// -b cn=config -s base dn >/dev/null 2>&1; then
+          return 0
+        fi
+        sleep 2
+      done
+      echo "Timed out waiting for local slapd" >&2
+      exit 1
+    }
+
+    add_openssh_lpk_schema() {
+      if ldapsearch -Y EXTERNAL -H ldapi:/// -LLL -b cn=schema,cn=config '(cn=*openssh-lpk)' dn 2>/dev/null | grep -q '^dn:'; then
+        return 0
+      fi
+
+      ldapadd -Y EXTERNAL -H ldapi:/// <<'LDIF'
+    dn: cn=openssh-lpk,cn=schema,cn=config
+    objectClass: olcSchemaConfig
+    cn: openssh-lpk
+    olcAttributeTypes: ( 1.3.6.1.4.1.24552.500.1.1.1.13 NAME 'sshPublicKey' DESC 'OpenSSH public key' EQUALITY octetStringMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.40 )
+    olcObjectClasses: ( 1.3.6.1.4.1.24552.500.1.1.2.0 NAME 'ldapPublicKey' DESC 'OpenSSH public key object class' SUP top AUXILIARY MAY ( sshPublicKey $ uid ) )
+    LDIF
+    }
+
+    configure_read_acl() {
+      ldapmodify -Y EXTERNAL -H ldapi:/// <<'LDIF'
+    dn: olcDatabase={1}mdb,cn=config
+    changetype: modify
+    replace: olcAccess
+    olcAccess: {0}to * by dn.exact=gidNumber=0+uidNumber=0,cn=peercred,cn=external,cn=auth manage by * break
+    olcAccess: {1}to attrs=userPassword,shadowLastChange by self write by dn="cn=admin,dc=example,dc=org" write by anonymous auth by * none
+    olcAccess: {2}to * by self read by dn="cn=admin,dc=example,dc=org" write by dn="cn=sssd-reader,ou=ServiceAccounts,dc=example,dc=org" read by * none
+    LDIF
+    }
+
+    configure_primary() {
+      ldapmodify -Y EXTERNAL -H ldapi:/// >/dev/null 2>&1 <<'LDIF' || true
+    dn: cn=module{0},cn=config
+    changetype: modify
+    add: olcModuleLoad
+    olcModuleLoad: syncprov
+    LDIF
+
+      if ! ldapsearch -Y EXTERNAL -H ldapi:/// -LLL -b 'olcOverlay=syncprov,olcDatabase={1}mdb,cn=config' -s base dn >/dev/null 2>&1; then
+        ldapadd -Y EXTERNAL -H ldapi:/// <<'LDIF'
+    dn: olcOverlay=syncprov,olcDatabase={1}mdb,cn=config
+    objectClass: olcOverlayConfig
+    objectClass: olcSyncProvConfig
+    olcOverlay: syncprov
+    olcSpSessionLog: 100
+    LDIF
+      fi
+
+      ldapmodify -Y EXTERNAL -H ldapi:/// >/dev/null 2>&1 <<'LDIF' || true
+    dn: olcDatabase={1}mdb,cn=config
+    changetype: modify
+    delete: olcReadOnly
+    LDIF
+    }
+
+    configure_replica() {
+      RID=$((100 + ORDINAL))
+
+      cat >/tmp/syncrepl.ldif <<EOF
+    dn: olcDatabase={1}mdb,cn=config
+    changetype: modify
+    replace: olcSyncrepl
+    olcSyncrepl: rid=${RID} provider=ldap://openldap-0.openldap-headless.identity.svc.cluster.local bindmethod=simple binddn="cn=admin,dc=example,dc=org" credentials="${LDAP_ADMIN_PASSWORD}" searchbase="dc=example,dc=org" scope=sub schemachecking=on type=refreshAndPersist retry="5 5 300 +" timeout=1
+    -
+    replace: olcUpdateRef
+    olcUpdateRef: ldap://openldap-primary.identity.svc.cluster.local
+    -
+    replace: olcReadOnly
+    olcReadOnly: TRUE
+    EOF
+
+      ldapmodify -Y EXTERNAL -H ldapi:/// -f /tmp/syncrepl.ldif
+    }
+
+    wait_for_local_slapd
+    add_openssh_lpk_schema
+    configure_read_acl
+
+    if [ "$ROLE" = "primary" ]; then
+      configure_primary
+    else
+      configure_replica
+    fi
+
+    wait "$LDAP_PID"
+  bootstrap.ldif: |
+    dn: ou=People,dc=example,dc=org
+    objectClass: organizationalUnit
+    ou: People
+
+    dn: ou=Groups,dc=example,dc=org
+    objectClass: organizationalUnit
+    ou: Groups
+
+    dn: ou=ServiceAccounts,dc=example,dc=org
+    objectClass: organizationalUnit
+    ou: ServiceAccounts
+
+    dn: cn=sssd-reader,ou=ServiceAccounts,dc=example,dc=org
+    objectClass: organizationalRole
+    objectClass: simpleSecurityObject
+    cn: sssd-reader
+    userPassword: readerpassword
+
+    dn: cn=alice,ou=Groups,dc=example,dc=org
+    objectClass: top
+    objectClass: posixGroup
+    cn: alice
+    gidNumber: 10001
+    memberUid: alice
+
+    dn: cn=project-a,ou=Groups,dc=example,dc=org
+    objectClass: top
+    objectClass: posixGroup
+    cn: project-a
+    gidNumber: 11001
+    memberUid: alice
+
+    dn: uid=alice,ou=People,dc=example,dc=org
+    objectClass: inetOrgPerson
+    objectClass: posixAccount
+    objectClass: shadowAccount
+    objectClass: ldapPublicKey
+    cn: Alice Slurm
+    sn: Slurm
+    uid: alice
+    uidNumber: 10001
+    gidNumber: 10001
+    homeDirectory: /home/alice
+    loginShell: /bin/bash
+    userPassword: alicepw
+    sshPublicKey: ssh-ed25519 AAAA_REPLACE_ME alice@example

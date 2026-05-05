@@ -53,6 +53,9 @@ accounting layer.
   image entrypoint.
 - `manifests/openldap-test-identity.yaml`: disposable OpenLDAP service, test
   users, and SSSD Secret for validating the LDAP path.
+- `manifests/ha-openldap/`: apply-ready HA OpenLDAP test deployment with one
+  writable primary, two read replicas, OCI block-volume data/config PVCs, SSSD
+  Secret, bootstrap Job, PDB, and NetworkPolicy.
 - `resume-checkpoint.md`: exact stop point and next steps for continuing the
   cluster test later.
 
@@ -68,6 +71,10 @@ Both identity paths have been tested:
 
 - no-LDAP wrapper for a small-cluster fallback;
 - LDAP-backed SSSD with `alice` resolved from LDAP in login and worker pods.
+
+The in-cluster HA OpenLDAP option has also been deployed and validated in the
+live OKE cluster in the `identity` namespace. The test confirmed primary writes,
+read replicas, read-only replica behavior, and replica restart recovery.
 
 The custom controller image needed for controller-side NSS resolution has also
 been built, pushed, and deployed:

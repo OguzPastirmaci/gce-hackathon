@@ -85,6 +85,47 @@ Use OCI Block Volume PVCs for LDAP state. Do not store the LDAP database on FSS.
 FSS remains the right backing store for user home directories, not for LDAP's
 database files.
 
+## Apply-Ready Test Manifests
+
+The guide repo contains an apply-ready HA OpenLDAP manifest set for the current
+OKE validation cluster:
+
+```text
+guides/slurm-operator/multi-user-oke/manifests/ha-openldap/
+```
+
+Deploy it from the combined repo root:
+
+```bash
+kubectl apply -k guides/slurm-operator/multi-user-oke/manifests/ha-openldap
+kubectl -n identity rollout status statefulset/openldap --timeout=10m
+kubectl -n identity wait --for=condition=complete job/openldap-bootstrap --timeout=5m
+kubectl -n identity get pods,pvc,svc -o wide
+```
+
+The manifest set creates:
+
+- `Namespace/identity`;
+- `StatefulSet/openldap` with three replicas;
+- `openldap-headless`, `openldap-primary`, and `openldap-read` Services;
+- one data PVC and one config PVC per replica using `oci-bv`;
+- `openldap-credentials` Secret with sample test credentials;
+- `site-sssd-ha-ldap-conf` Secret in the `slurm` namespace;
+- bootstrap Job that creates `alice`, `project-a`, and `sssd-reader`;
+- PDB and NetworkPolicy.
+
+The config PVC is required. The OpenLDAP image keeps the config database under
+`/etc/ldap/slapd.d`; persisting only `/var/lib/ldap` causes pods to fail after
+restart with an existing data directory and an empty config directory.
+
+The current manifest is for validation. Before production use:
+
+- replace all sample passwords;
+- enable LDAPS or StartTLS;
+- use a real CA bundle in SSSD clients;
+- add backup, restore, and replica-promotion runbooks;
+- decide how secrets are generated and rotated.
+
 ## Services
 
 Use three service patterns:
@@ -349,11 +390,27 @@ kubectl -n slurm exec slurm-controller-0 -c slurmctld -- \
   sacctmgr -nP show assoc user=alice format=User,Account,DefaultQOS,QOS
 ```
 
+## Current OKE Validation
+
+Validated on the current OKE cluster on 2026-05-05:
+
+- applied `manifests/ha-openldap`;
+- all three pods reached `1/1 Running`;
+- `openldap-bootstrap` completed;
+- each replica has a data PVC and config PVC on `oci-bv`;
+- `sssd-reader` can read `alice` from `openldap-0`, `openldap-1`, and
+  `openldap-2`;
+- adding `bob` through `openldap-0` replicated to both replicas;
+- adding `carol` through `openldap-primary.identity.svc.cluster.local`
+  replicated to both replicas;
+- direct write to `openldap-1` failed with LDAP `53 operation restricted`;
+- deleting `openldap-2` recreated it successfully with zero restarts and the
+  LDAP data remained readable.
+
 ## Open Items Before Implementation
 
-- Choose the OpenLDAP container image and version.
-- Decide whether to use dynamic `cn=config`, static config, or a generated
-  config mounted at startup.
+- Replace the test OpenLDAP image and bootstrap scripts with the final approved
+  image and configuration mechanism.
 - Define the exact LDAP suffix, for example `dc=example,dc=org`.
 - Define UID/GID ranges and ownership policy.
 - Define the SSH public key attribute, for example `sshPublicKey`.
