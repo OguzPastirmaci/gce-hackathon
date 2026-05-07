@@ -1,0 +1,15 @@
+apiVersion: resource.nvidia.com/v1beta1
+kind: ComputeDomain
+metadata:
+  name: slurm-gb300-imex-compute-domain
+  namespace: slurm
+spec:
+  # numNodes=0 lets the NVIDIA DRA driver populate the ComputeDomain from the
+  # ResourceClaims attached to the Slinky slurmd pods.
+  numNodes: 0
+  channel:
+    # Every participating slurmd pod gets access to the IMEX channel. GPUs are
+    # still allocated separately with nvidia.com/gpu and Slurm GRES.
+    allocationMode: All
+    resourceClaimTemplate:
+      name: slurm-gb300-imex-channel

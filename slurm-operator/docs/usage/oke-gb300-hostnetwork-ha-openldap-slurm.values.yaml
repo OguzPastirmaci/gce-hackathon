@@ -1,0 +1,300 @@
+# OKE GB300 Slurm values for HA OpenLDAP/SSSD/FSS testing.
+#
+# This keeps the GB300 hostNetwork AutoDetect=nvml worker setup and adds:
+# - HA OpenLDAP-backed SSSD via Secret/site-sssd-ha-ldap-conf
+# - cert-manager generated OpenLDAP CA copied to Secret/openldap-ca and mounted into SSSD clients
+# - shared FSS /home through PVC/slurm-home
+# - LoginSet with SSH keys resolved through SSSD
+# - controller-side SSSD/NSS sidecar
+# - SlurmDBD accounting through MariaDB, if MariaDB is deployed
+#
+# Do not copy the hostNetwork worker sshd Port 2222 setting into SR-IOV/VF
+# pod-networked worker values.
+#
+# The GB300 worker node is arm64. Keep the worker image tag multi-platform
+# (linux/amd64 + linux/arm64). This values file uses the combined NVML+NCCL
+# worker image so Slurm can use AutoDetect=nvml and users can run nccl-tests
+# without staging test binaries into FSS:
+# iad.ocir.io/idxzjcdglx2s/slinky:slurmd-nvml-nccl-25.11.5-ubuntu24.04-r2
+#
+# Intentionally not set for GB300:
+# - Boards
+# - CPUs
+# - SocketsPerBoard
+# - CoresPerSocket
+# - ThreadsPerCore
+# - l3cache_as_socket / numa_node_as_socket parameters
+
+sssd:
+  secretRef:
+    name: site-sssd-ha-ldap-conf
+    key: sssd.conf
+
+controller:
+  slurmctld:
+    image:
+      repository: iad.ocir.io/idxzjcdglx2s/slinky
+      tag: slurmctld-pmix-sssd-nss-25.11-ubuntu24.04
+    volumeMounts:
+      - name: sssd-state
+        mountPath: /var/lib/sss
+      - name: sssd-run
+        mountPath: /run/sssd
+  persistence:
+    enabled: true
+    storageClassName: oci-bv
+    resources:
+      requests:
+        storage: 10Gi
+  extraConfMap:
+    GresTypes: gpu
+    PropagateResourceLimitsExcept: MEMLOCK
+    AccountingStorageEnforce: associations,limits,qos
+    AccountingStorageTRES: gres/gpu
+  podSpec:
+    nodeSelector:
+      node.kubernetes.io/instance-type: VM.Standard.E5.Flex
+    securityContext:
+      runAsNonRoot: false
+      fsGroup: 401
+    volumes:
+      - name: sssd-conf
+        secret:
+          secretName: site-sssd-ha-ldap-conf
+          defaultMode: 0600
+          items:
+            - key: sssd.conf
+              path: sssd.conf
+              mode: 0600
+      - name: ldap-ca
+        secret:
+          secretName: openldap-ca
+          items:
+            - key: ca.crt
+              path: ca.crt
+      - name: sssd-state
+        emptyDir: {}
+      - name: sssd-run
+        emptyDir: {}
+      - name: sssd-log
+        emptyDir: {}
+    containers:
+      - name: sssd
+        image: ghcr.io/slinkyproject/login:25.11-ubuntu24.04
+        imagePullPolicy: IfNotPresent
+        command:
+          - /bin/bash
+          - -lc
+        args:
+          - |
+            set -euo pipefail
+            install -d -m 0700 /etc/sssd
+            install -o root -g root -m 0600 /etc/sssd-secret/sssd.conf /etc/sssd/sssd.conf
+            install -d -m 0755 /var/lib/sss
+            install -d -m 0700 /var/lib/sss/db /var/lib/sss/keytabs /var/lib/sss/secrets
+            install -d -m 0751 /var/lib/sss/deskprofile
+            install -d -m 0755 /var/lib/sss/gpo_cache /var/lib/sss/pipes /var/lib/sss/pubconf /var/lib/sss/pubconf/krb5.include.d /run/sssd
+            install -d -m 0750 /var/lib/sss/pipes/private /var/log/sssd
+            install -d -m 0775 /var/lib/sss/mc
+            chown -R root:root /var/lib/sss /run/sssd /var/log/sssd
+            chmod 0755 /var/lib/sss /var/lib/sss/gpo_cache /var/lib/sss/pipes /var/lib/sss/pubconf /var/lib/sss/pubconf/krb5.include.d /run/sssd
+            chmod 0700 /var/lib/sss/db /var/lib/sss/keytabs /var/lib/sss/secrets
+            chmod 0751 /var/lib/sss/deskprofile
+            chmod 0750 /var/lib/sss/pipes/private /var/log/sssd
+            chmod 0775 /var/lib/sss/mc
+            rm -f /var/lib/sss/pipes/nss /var/lib/sss/pipes/pam /var/lib/sss/pipes/ssh
+            rm -f /var/lib/sss/pipes/private/* /run/sssd.pid /run/sssd/*.pid
+            exec /usr/sbin/sssd -i
+        securityContext:
+          runAsNonRoot: false
+          runAsUser: 0
+          runAsGroup: 0
+          allowPrivilegeEscalation: false
+        volumeMounts:
+          - name: sssd-conf
+            mountPath: /etc/sssd-secret
+            readOnly: true
+          - name: ldap-ca
+            mountPath: /etc/sssd/ca
+            readOnly: true
+          - name: sssd-state
+            mountPath: /var/lib/sss
+          - name: sssd-run
+            mountPath: /run/sssd
+          - name: sssd-log
+            mountPath: /var/log/sssd
+
+configFiles:
+  gres.conf: |
+    AutoDetect=nvml
+  cgroup.conf: |
+    CgroupPlugin=cgroup/v2
+    IgnoreSystemd=yes
+    ConstrainCores=yes
+    ConstrainRAMSpace=no
+    ConstrainDevices=yes
+    ConstrainSwapSpace=no
+
+restapi:
+  replicas: 1
+  podSpec:
+    nodeSelector:
+      node.kubernetes.io/instance-type: VM.Standard.E5.Flex
+
+loginsets:
+  slinky:
+    enabled: true
+    replicas: 1
+    extraSshdConfig: |
+      AuthorizedKeysCommand /usr/bin/sss_ssh_authorizedkeys
+      AuthorizedKeysCommandUser nobody
+      AuthorizedKeysFile none
+      PasswordAuthentication no
+    login:
+      volumeMounts:
+        - name: home
+          mountPath: /home
+        - name: ldap-ca
+          mountPath: /etc/sssd/ca
+          readOnly: true
+    podSpec:
+      nodeSelector:
+        node.kubernetes.io/instance-type: VM.Standard.E5.Flex
+      volumes:
+        - name: home
+          persistentVolumeClaim:
+            claimName: slurm-home
+        - name: ldap-ca
+          secret:
+            secretName: openldap-ca
+            items:
+              - key: ca.crt
+                path: ca.crt
+    service:
+      spec:
+        type: LoadBalancer
+
+nodesets:
+  slinky:
+    enabled: false
+
+  gb300:
+    enabled: true
+    scalingMode: StatefulSet
+    replicas: 1
+    useResourceLimits: false
+    slurmd:
+      image:
+        repository: iad.ocir.io/idxzjcdglx2s/slinky
+        tag: slurmd-nvml-nccl-25.11.5-ubuntu24.04-r2
+      args:
+        - -N
+        - $(KUBE_NODE_NAME)
+      env:
+        - name: KUBE_NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+      lifecycle:
+        preStop:
+          exec:
+            command:
+              - /usr/bin/sh
+              - -c
+              - scontrol update nodename="${KUBE_NODE_NAME}" state=down reason='Pod is terminating'; scontrol delete nodename="${KUBE_NODE_NAME}" || true
+      resources:
+        limits:
+          nvidia.com/gpu: 4
+        requests:
+          nvidia.com/gpu: 4
+      volumeMounts:
+        - name: devinf
+          mountPath: /dev/infiniband
+        - name: shm
+          mountPath: /dev/shm
+        - name: home
+          mountPath: /home
+        - name: ldap-ca
+          mountPath: /etc/sssd/ca
+          readOnly: true
+    logfile:
+      image:
+        repository: docker.io/library/alpine
+        tag: latest
+    ssh:
+      enabled: true
+      extraSshdConfig: |
+        Port 2222
+    extraConfMap:
+      Gres:
+        - gpu:4
+      Features:
+        - gb300
+        - blackwell
+        - rdma
+        - hostnetwork
+      Weight: 1
+    partition:
+      enabled: true
+      configMap:
+        State: UP
+        Default: "YES"
+        MaxTime: UNLIMITED
+    updateStrategy:
+      type: RollingUpdate
+      rollingUpdate:
+        maxUnavailable: 25%
+    podSpec:
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      nodeSelector:
+        node.kubernetes.io/instance-type: BM.GPU.GB300.4
+      tolerations:
+        - key: nvidia.com/gpu
+          effect: NoSchedule
+          operator: Exists
+      volumes:
+        - name: devinf
+          hostPath:
+            path: /dev/infiniband
+        - name: shm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 32Gi
+        - name: home
+          persistentVolumeClaim:
+            claimName: slurm-home
+        - name: ldap-ca
+          secret:
+            secretName: openldap-ca
+            items:
+              - key: ca.crt
+                path: ca.crt
+
+partitions:
+  all:
+    enabled: true
+    nodesets:
+      - ALL
+    configMap:
+      State: UP
+      MaxTime: UNLIMITED
+
+accounting:
+  enabled: true
+  storageConfig:
+    host: mariadb
+    port: 3306
+    database: slurm_acct_db
+    username: slurm
+    passwordKeyRef:
+      name: mariadb-password
+      key: password
+  podSpec:
+    nodeSelector:
+      node.kubernetes.io/instance-type: VM.Standard.E5.Flex
+
+vendor:
+  nvidia:
+    dcgm:
+      enabled: false

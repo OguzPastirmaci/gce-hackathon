@@ -1,0 +1,69 @@
+# Topograph OCI provider + Slinky engine safe test values for BM.GPU.GB300.4.
+#
+# This writes generated topology into a separate ConfigMap:
+#
+#   slurm/topograph-oci-slurm-config-test
+#
+# It does not update the live Slinky `slurm-config-extra` ConfigMap and does
+# not update Slinky node topology annotations because `reportingMode` is
+# `staticNodes`.
+
+global:
+  provider:
+    name: oci
+  engine:
+    name: slinky
+    params:
+      namespace: slurm
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: slurmd
+          app.kubernetes.io/instance: slurm-worker-gb300
+      topologyConfigmapName: topograph-oci-slurm-config-test
+      topologyConfigPath: topology.yaml
+      reportingMode: staticNodes
+      topologies:
+        topo-topograph-oci:
+          plugin: topology/block
+          blockSizes:
+            - 4
+          clusterDefault: true
+          nodes:
+            - "10.140.71.103"
+            - "10.140.79.152"
+            - "10.140.88.115"
+            - "10.140.93.120"
+
+verbosity: 4
+
+# The released v0.3.0 image and the published ghcr.io/nvidia/topograph:main
+# image emit `blockSizes` in Slurm YAML topology output. Slurm 25.11 expects
+# `block_sizes`. This image is built from unmodified upstream Topograph commit
+# 99b12a0, where the source emits the Slurm-compatible key.
+image:
+  repository: iad.ocir.io/idxzjcdglx2s/slinky
+  tag: topograph-upstream-99b12a0
+
+# Topograph API and node-observer can run on the CPU nodes. The node-data-broker
+# DaemonSet must run on the GPU nodes so it can annotate those Kubernetes nodes
+# with topograph.nvidia.com/instance and topograph.nvidia.com/region from IMDS.
+node-data-broker:
+  initc:
+    image:
+      repository: iad.ocir.io/idxzjcdglx2s/slinky
+      tag: topograph-upstream-99b12a0
+  nodeSelector:
+    node.kubernetes.io/instance-type: BM.GPU.GB300.4
+  tolerations:
+    - operator: Exists
+
+node-observer:
+  image:
+    repository: iad.ocir.io/idxzjcdglx2s/slinky
+    tag: topograph-upstream-99b12a0
+  topograph:
+    trigger:
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: slurmd
+          app.kubernetes.io/instance: slurm-worker-gb300

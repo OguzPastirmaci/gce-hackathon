@@ -1,0 +1,28 @@
+---
+- topology: topo-gb300-block
+  cluster_default: false
+  block:
+    block_sizes:
+      - 2
+      - 4
+    blocks:
+      - block: gb300_b0
+        nodes: "10.140.71.103,10.140.88.115"
+      - block: gb300_b1
+        nodes: "10.140.79.152,10.140.93.120"
+- topology: topo-oci-local-block
+  cluster_default: false
+  block:
+    block_sizes:
+      - 4
+    blocks:
+      - block: lb_3bf4jpavrba
+        nodes: "10.140.71.103,10.140.79.152,10.140.88.115,10.140.93.120"
+- topology: topo-topograph-oci
+  cluster_default: true
+  block:
+    block_sizes:
+      - 4
+    blocks:
+      - block: block1
+        nodes: "10.140.71.103,10.140.79.152,10.140.88.115,10.140.93.120"

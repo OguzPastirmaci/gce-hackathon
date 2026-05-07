@@ -1,0 +1,45 @@
+# OKE GB300 Slinky IMEX/DRA overlay.
+#
+# Apply on top of the tested GB300 HA LDAP/FSS/accounting values with:
+#
+#   kubectl apply -f docs/usage/oke-gb300-imex-dra-computedomain.yaml
+#   helm -n slurm upgrade slurm oci://ghcr.io/slinkyproject/charts/slurm \
+#     --version 1.1.0 \
+#     --reuse-values \
+#     -f docs/usage/oke-gb300-imex-dra-overlay.values.yaml
+#
+# This overlay keeps GPU allocation on the NVIDIA device plugin:
+#
+#   requests/limits:
+#     nvidia.com/gpu: 4
+#
+# DRA is used only for the NVIDIA IMEX ComputeDomain channel claim consumed by
+# the long-running Slinky slurmd pods. Slurm jobs are still scheduled inside
+# those existing slurmd pods and request GPUs through Slurm GRES, not through
+# per-job Kubernetes DRA ResourceClaims.
+#
+# Slurm-side IMEX integration is enabled by setting:
+#
+#   SwitchType=switch/nvidia_imex
+#
+# The tested GB300 cluster keeps TopologyPlugin=topology/flat.
+
+controller:
+  extraConfMap:
+    SwitchType: switch/nvidia_imex
+
+nodesets:
+  gb300:
+    replicas: 4
+    slurmd:
+      resources:
+        limits:
+          nvidia.com/gpu: 4
+        requests:
+          nvidia.com/gpu: 4
+        claims:
+          - name: imex-channel
+    podSpec:
+      resourceClaims:
+        - name: imex-channel
+          resourceClaimTemplateName: slurm-gb300-imex-channel

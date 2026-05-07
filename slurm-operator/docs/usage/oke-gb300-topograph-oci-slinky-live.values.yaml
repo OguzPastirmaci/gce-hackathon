@@ -1,0 +1,72 @@
+# Topograph OCI provider + Slinky engine live values for BM.GPU.GB300.4.
+#
+# This targets the live Slinky ConfigMap:
+#
+#   slurm/slurm-config-extra
+#
+# It uses `reportingMode: dynamicNodes`, which means Topograph updates both:
+#
+# - the live topology ConfigMap key `topology.yaml`;
+# - Kubernetes node annotation `topology.slinky.slurm.net/spec`.
+#
+# Do not apply this directly over an existing non-Topograph topology without the
+# migration procedure in docs/usage/oke-gb300-topograph-topology.md. Slurm
+# persists node topology names in controller state, so old topology names must
+# remain available until Slinky has reconciled all nodes to the Topograph names.
+
+global:
+  provider:
+    name: oci
+  engine:
+    name: slinky
+    params:
+      namespace: slurm
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: slurmd
+          app.kubernetes.io/instance: slurm-worker-gb300
+      topologyConfigmapName: slurm-config-extra
+      topologyConfigPath: topology.yaml
+      reportingMode: dynamicNodes
+      topologies:
+        topo-topograph-oci:
+          plugin: topology/block
+          blockSizes:
+            - 4
+          clusterDefault: true
+          nodes:
+            - "10.140.71.103"
+            - "10.140.79.152"
+            - "10.140.88.115"
+            - "10.140.93.120"
+
+verbosity: 4
+
+# The released v0.3.0 image and the published ghcr.io/nvidia/topograph:main
+# image emit `blockSizes` in Slurm YAML topology output. Slurm 25.11 expects
+# `block_sizes`. This image is built from unmodified upstream Topograph commit
+# 99b12a0, where the source emits the Slurm-compatible key.
+image:
+  repository: iad.ocir.io/idxzjcdglx2s/slinky
+  tag: topograph-upstream-99b12a0
+
+node-data-broker:
+  initc:
+    image:
+      repository: iad.ocir.io/idxzjcdglx2s/slinky
+      tag: topograph-upstream-99b12a0
+  nodeSelector:
+    node.kubernetes.io/instance-type: BM.GPU.GB300.4
+  tolerations:
+    - operator: Exists
+
+node-observer:
+  image:
+    repository: iad.ocir.io/idxzjcdglx2s/slinky
+    tag: topograph-upstream-99b12a0
+  topograph:
+    trigger:
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: slurmd
+          app.kubernetes.io/instance: slurm-worker-gb300

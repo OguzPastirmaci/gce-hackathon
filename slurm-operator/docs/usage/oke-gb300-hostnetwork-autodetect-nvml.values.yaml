@@ -1,0 +1,155 @@
+# OKE GB300 Slinky test values.
+#
+# Target cluster:
+# - Shape: BM.GPU.GB300.4
+# - GPU node architecture: arm64
+# - Worker network mode: hostNetwork
+# - Worker node name: use the Kubernetes node name via slurmd -N, because
+#   hostNetwork pods inherit the host OS hostname on OKE while Slinky maps
+#   hostNetwork StatefulSet pods to spec.nodeName
+# - Worker sshd port: 2222, to avoid hostNetwork conflict with the node's own
+#   sshd on port 22. Do not apply this to SR-IOV/VF pod-networked workers.
+# - GPU detection: AutoDetect=nvml only in gres.conf
+#
+# Intentionally not set here:
+# - Boards
+# - CPUs
+# - SocketsPerBoard
+# - CoresPerSocket
+# - ThreadsPerCore
+# - l3cache_as_socket / numa_node_as_socket parameters
+
+controller:
+  persistence:
+    enabled: true
+    storageClassName: oci-bv
+    resources:
+      requests:
+        storage: 10Gi
+  extraConfMap:
+    GresTypes: gpu
+    PropagateResourceLimitsExcept: MEMLOCK
+  podSpec:
+    nodeSelector:
+      node.kubernetes.io/instance-type: VM.Standard.E5.Flex
+
+configFiles:
+  gres.conf: |
+    AutoDetect=nvml
+  cgroup.conf: |
+    CgroupPlugin=cgroup/v2
+    IgnoreSystemd=yes
+    ConstrainCores=yes
+    ConstrainRAMSpace=no
+    ConstrainDevices=yes
+    ConstrainSwapSpace=no
+
+restapi:
+  replicas: 1
+  podSpec:
+    nodeSelector:
+      node.kubernetes.io/instance-type: VM.Standard.E5.Flex
+
+loginsets:
+  slinky:
+    enabled: false
+
+nodesets:
+  slinky:
+    enabled: false
+
+  gb300:
+    enabled: true
+    scalingMode: StatefulSet
+    replicas: 1
+    useResourceLimits: false
+    slurmd:
+      image:
+        repository: iad.ocir.io/idxzjcdglx2s/slinky
+        tag: slurmd-nvml-core-25.11.5-ubuntu24.04
+      args:
+        - -N
+        - $(KUBE_NODE_NAME)
+      env:
+        - name: KUBE_NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+      lifecycle:
+        preStop:
+          exec:
+            command:
+              - /usr/bin/sh
+              - -c
+              - scontrol update nodename="${KUBE_NODE_NAME}" state=down reason='Pod is terminating'; scontrol delete nodename="${KUBE_NODE_NAME}" || true
+      resources:
+        limits:
+          nvidia.com/gpu: 4
+        requests:
+          nvidia.com/gpu: 4
+      volumeMounts:
+        - name: devinf
+          mountPath: /dev/infiniband
+        - name: shm
+          mountPath: /dev/shm
+    logfile:
+      image:
+        repository: docker.io/library/alpine
+        tag: latest
+    ssh:
+      enabled: true
+      extraSshdConfig: |
+        Port 2222
+    extraConfMap:
+      Gres:
+        - gpu:4
+      Features:
+        - gb300
+        - blackwell
+        - rdma
+        - hostnetwork
+      Weight: 1
+    partition:
+      enabled: true
+      configMap:
+        State: UP
+        Default: "YES"
+        MaxTime: UNLIMITED
+    updateStrategy:
+      type: RollingUpdate
+      rollingUpdate:
+        maxUnavailable: 25%
+    podSpec:
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      nodeSelector:
+        node.kubernetes.io/instance-type: BM.GPU.GB300.4
+      tolerations:
+        - key: nvidia.com/gpu
+          effect: NoSchedule
+          operator: Exists
+      volumes:
+        - name: devinf
+          hostPath:
+            path: /dev/infiniband
+        - name: shm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 32Gi
+
+partitions:
+  all:
+    enabled: true
+    nodesets:
+      - ALL
+    configMap:
+      State: UP
+      MaxTime: UNLIMITED
+
+accounting:
+  enabled: false
+
+vendor:
+  nvidia:
+    dcgm:
+      enabled: false

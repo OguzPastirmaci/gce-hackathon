@@ -25,8 +25,9 @@ shape:
 | --- | --- | --- |
 | `BM.GPU4.8` | [Shape: BM.GPU4.8](oke-slurm-shape-runbooks.md#shape-bmgpu48) | SR-IOV/VF pod networking, 8 GPUs, 16 VFs, BM.GPU4.8 NUMA-shaped NVML autodetect path |
 | `BM.GPU.GB200.4` | [Shape: BM.GPU.GB200.4](oke-slurm-shape-runbooks.md#shape-bmgpugb2004) | hostNetwork, arm64 worker, 4 GPUs, worker sshd on `Port 2222` |
+| `BM.GPU.GB300.4` | [Shape: BM.GPU.GB300.4](oke-slurm-shape-runbooks.md#shape-bmgpugb3004) | hostNetwork, arm64 worker, 4 GPUs, `AutoDetect=nvml` only, worker sshd on `Port 2222` |
 
-The identity model is the same for both shapes: users come from LDAP through
+The identity model is the same for these shapes: users come from LDAP through
 SSSD, `/home` comes from FSS, and SlurmDBD records the submitting user. The
 worker values are not interchangeable.
 

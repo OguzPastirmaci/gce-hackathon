@@ -1,0 +1,40 @@
+# Experimental GB300 topology/block overlay generated from Oracle Cloud
+# Infrastructure RDMA labels already present on the Kubernetes nodes.
+#
+# Source label:
+#   oci.oraclecloud.com/rdma.local_block_id=3bf4jpavrba
+#
+# All four active GB300 Slurm worker nodes were in the same OCI local block on
+# 2026-05-06, so this overlay creates one 4-node Slurm topology block.
+#
+# The legacy topo-gb300-block entry is intentionally kept during migration
+# because Slurm persists node topology in controller state. Remove it only after
+# all nodes have been updated to topo-oci-local-block and the controller has
+# restarted cleanly with that persisted state.
+
+controller:
+  extraConfMap:
+    TopologyParam: BlockAsNodeRank
+
+configFiles:
+  topology.yaml: |
+    ---
+    - topology: topo-gb300-block
+      cluster_default: false
+      block:
+        block_sizes:
+          - 2
+          - 4
+        blocks:
+          - block: gb300_b0
+            nodes: "10.140.71.103,10.140.88.115"
+          - block: gb300_b1
+            nodes: "10.140.79.152,10.140.93.120"
+    - topology: topo-oci-local-block
+      cluster_default: true
+      block:
+        block_sizes:
+          - 4
+        blocks:
+          - block: lb_3bf4jpavrba
+            nodes: "10.140.71.103,10.140.79.152,10.140.88.115,10.140.93.120"

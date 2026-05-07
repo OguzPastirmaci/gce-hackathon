@@ -1,0 +1,128 @@
+# OKE GB300 HA OpenLDAP test values.
+#
+# This deploys one writable OpenLDAP primary and two read-only replicas in the
+# identity namespace. It is for validating the in-cluster HA LDAP path with
+# Slurm/SSSD; do not treat the test passwords here as production secrets.
+
+fullnameOverride: openldap
+
+global:
+  ldapDomain: example.org
+  adminUser: admin
+  adminPassword: adminpassword
+  configUser: admin
+  configPassword: configpassword
+
+replicaCount: 1
+readOnlyReplicaCount: 2
+
+image:
+  repository: jpgouin/openldap
+  tag: 2.6.9-fix
+  pullPolicy: IfNotPresent
+
+# Keep identity services on the CPU pool for this GB300 test cluster. The Slurm
+# worker image is multi-platform for arm64 GB300 nodes; this avoids requiring
+# every identity-side test image to run on the GPU node.
+nodeSelector:
+  node.kubernetes.io/instance-type: VM.Standard.E5.Flex
+
+ltb-passwd:
+  enabled: false
+
+phpldapadmin:
+  enabled: false
+
+service:
+  type: ClusterIP
+  enableLdapPort: true
+  enableSslLdapPort: true
+
+serviceReadOnly:
+  type: ClusterIP
+  enableLdapPort: true
+  enableSslLdapPort: true
+  headlessEnableLdapPort: true
+  headlessEnableSslLdapPort: true
+
+env:
+  BITNAMI_DEBUG: "false"
+  LDAP_LOGLEVEL: "256"
+  LDAP_REQUIRE_TLS: "false"
+  LDAPTLS_REQCERT: "demand"
+  LDAP_ENABLE_TLS: "yes"
+  LDAP_SKIP_DEFAULT_TREE: "yes"
+  LDAP_ALLOW_ANON_BINDING: "no"
+
+initialSchema: "cosine,inetorgperson,nis"
+
+replication:
+  enabled: true
+  clusterName: "cluster.local"
+  retry: 60
+  timeout: 1
+  interval: 00:00:00:10
+  starttls: "critical"
+
+initTLSSecret:
+  tls_enabled: true
+  secret: openldap-tls
+
+persistence:
+  enabled: true
+  storageClass: oci-bv
+  accessModes:
+    - ReadWriteOnce
+  size: 8Gi
+
+pdb:
+  enabled: true
+  minAvailable: 2
+
+podAntiAffinityPreset: soft
+
+customLdifFiles:
+  00-root.ldif: |-
+    dn: dc=example,dc=org
+    objectClass: top
+    objectClass: dcObject
+    objectClass: organization
+    o: Slurm Test
+    dc: example
+
+    dn: ou=People,dc=example,dc=org
+    objectClass: organizationalUnit
+    ou: People
+
+    dn: ou=Groups,dc=example,dc=org
+    objectClass: organizationalUnit
+    ou: Groups
+
+  10-slurm-users.ldif: |-
+    dn: cn=alice,ou=Groups,dc=example,dc=org
+    objectClass: top
+    objectClass: posixGroup
+    cn: alice
+    gidNumber: 10001
+    memberUid: alice
+
+    dn: cn=project-a,ou=Groups,dc=example,dc=org
+    objectClass: top
+    objectClass: posixGroup
+    cn: project-a
+    gidNumber: 11001
+    memberUid: alice
+
+    dn: uid=alice,ou=People,dc=example,dc=org
+    objectClass: inetOrgPerson
+    objectClass: posixAccount
+    objectClass: shadowAccount
+    cn: Alice Slurm
+    sn: Slurm
+    uid: alice
+    uidNumber: 10001
+    gidNumber: 10001
+    homeDirectory: /home/alice
+    loginShell: /bin/bash
+    userPassword: alicepw
+    description: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMVDtBylW3N5r0XxDx/KbNrpslGX5o5dNDgWRA0QF8ag alice-slurm-test
