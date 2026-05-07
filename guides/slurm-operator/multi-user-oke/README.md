@@ -16,6 +16,9 @@ accounting layer.
 
 ## Files
 
+- `../start-here-full-oke-slurm.md`: polished end-to-end entry point for
+  deploying the full Slurm Operator, HA OpenLDAP, FSS home, accounting, and
+  shape-specific worker stack.
 - `README.md`: architecture and deployment order.
 - `product-requirements.md`: PRD for the multi-user Slurm on OKE product
   direction and acceptance criteria.

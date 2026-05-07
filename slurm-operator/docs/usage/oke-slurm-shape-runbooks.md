@@ -1,8 +1,13 @@
 # OKE Slurm Shape Runbooks
 
-Use this index first. The Slurm-on-OKE instructions are shape-specific because
-GPU topology, CPU affinity, node architecture, and network mode differ by GPU
-shape.
+For a single ordered deployment path that includes Slinky Operator, HA
+OpenLDAP, FSS home directories, SlurmDBD accounting, and shape-specific worker
+values, start with
+`guides/slurm-operator/start-here-full-oke-slurm.md`.
+
+Use this index when you need the shape-specific details behind that guide. The
+Slurm-on-OKE instructions are shape-specific because GPU topology, CPU
+affinity, node architecture, and network mode differ by GPU shape.
 
 Pick the section that matches the OKE GPU node shape and follow only that
 section's manifests and values. Do not mix worker values between shapes.
