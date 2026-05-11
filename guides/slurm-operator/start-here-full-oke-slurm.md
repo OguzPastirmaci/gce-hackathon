@@ -8,8 +8,8 @@ This is the entry point for deploying the full tested stack:
 - SSSD/NSS identity resolution in login, worker, and controller pods;
 - OCI FSS mounted at `/home`;
 - MariaDB-backed SlurmDBD accounting;
-- shape-specific worker configuration for `BM.GPU4.8`, `BM.GPU.GB200.4`, and
-  `BM.GPU.GB300.4`;
+- shape-specific worker configuration for `BM.GPU4.8`, `BM.GPU.GB200.4`,
+  `BM.GPU.GB300.4`, and `BM.GPU.MI300X.8`;
 - optional GB300 IMEX/DRA and topology-aware placement.
 
 The goal is a normal Slurm user experience even though Slurm runs on
@@ -38,12 +38,12 @@ hostNetwork values, GPU counts, CPU topology, or worker images between shapes.
 | `BM.GPU4.8` | SR-IOV/VF pod networking | `amd64` | `AutoDetect=nvml` with NUMA-shaped dynamic-node topology | NVML worker image | Validated on A100-generation OKE |
 | `BM.GPU.GB200.4` | `hostNetwork` | `arm64` | `AutoDetect=nvml` only | multi-platform NVML worker image | Validated on GB200 OKE |
 | `BM.GPU.GB300.4` | `hostNetwork` | `arm64` | `AutoDetect=nvml` only | multi-platform NVML+NCCL worker image | Validated on GB300 OKE |
-| AMD/ROCm | TBD | `amd64` currently | ROCm path pending | ROCm Slurm image prepared | Image built, cluster path not validated |
+| `BM.GPU.MI300X.8` | `hostNetwork` | `amd64` | `AutoDetect=rsmi` | ROCm/RSMI/RCCL worker image | Validated on AMD MI300X OKE |
 
-For `BM.GPU.GB200.4` and `BM.GPU.GB300.4`, worker SSH uses port `2222`
-because workers run with `hostNetwork` and must not conflict with the node's
-own SSH daemon on port `22`. Do not copy this setting into the `BM.GPU4.8`
-SR-IOV/VF path.
+For `BM.GPU.GB200.4`, `BM.GPU.GB300.4`, and `BM.GPU.MI300X.8`, worker SSH
+uses port `2222` because workers run with `hostNetwork` and must not conflict
+with the node's own SSH daemon on port `22`. Do not copy this setting into the
+`BM.GPU4.8` SR-IOV/VF path.
 
 ## Architecture
 
@@ -84,6 +84,7 @@ Shape-specific deployment files:
 | `BM.GPU4.8` | `slurm-operator/docs/usage/oke-bm-gpu4-8-fss-sssd-ha-openldap-controller-sssd-autodetect-nvml-numa-topology.overlay.yaml` |
 | `BM.GPU.GB200.4` | `slurm-operator/docs/usage/oke-gb200-ha-openldap-prereqs.yaml`, `oke-gb200-ha-openldap.values.yaml`, `oke-gb200-ha-openldap-tls-config.ldif`, `oke-gb200-ha-openldap-primary-syncprov.ldif`, `oke-gb200-slurm-home-pvc.yaml`, `oke-gb200-mariadb.yaml`, `oke-gb200-hostnetwork-ha-openldap-slurm.values.yaml` |
 | `BM.GPU.GB300.4` | `slurm-operator/docs/usage/oke-gb300-ha-openldap-prereqs.yaml`, `oke-gb300-ha-openldap.values.yaml`, `oke-gb300-ha-openldap-tls-config.ldif`, `oke-gb300-ha-openldap-primary-syncprov.ldif`, `oke-gb300-slurm-home-pvc.yaml`, `oke-gb300-mariadb.yaml`, `oke-gb300-hostnetwork-ha-openldap-slurm.values.yaml`, `oke-gb300-ha-openldap-deploy.sh` |
+| `BM.GPU.MI300X.8` | `slurm-operator/docs/usage/oke-amd-mi300x-ha-openldap-prereqs.yaml`, `oke-amd-mi300x-ha-openldap.values.yaml`, `oke-amd-mi300x-ha-openldap-tls-config.ldif`, `oke-amd-mi300x-ha-openldap-primary-syncprov.ldif`, `oke-amd-mi300x-slurm-home-pvc.yaml`, `oke-amd-mi300x-mariadb.yaml`, `oke-amd-mi300x-hostnetwork-ha-openldap-slurm.values.yaml`, `oke-amd-mi300x-ha-openldap-deploy.sh`, `oke-amd-mi300x-slurm-rccl.sbatch` |
 
 Optional GB300 files:
 
@@ -105,7 +106,8 @@ OKE cluster:
 - OCI CLI available on the operator node with instance principal auth;
 - NVIDIA GPU Operator installed for NVIDIA shapes;
 - SR-IOV/VF networking configured for `BM.GPU4.8` only;
-- `hostNetwork` acceptable for `BM.GPU.GB200.4` and `BM.GPU.GB300.4`;
+- `hostNetwork` acceptable for `BM.GPU.GB200.4`, `BM.GPU.GB300.4`, and
+  `BM.GPU.MI300X.8`;
 - OCI FSS PV named `fss-pv`;
 - block storage class `oci-bv`;
 - enough service quota for the login `LoadBalancer`.
@@ -159,6 +161,22 @@ scp -o ProxyJump=ubuntu@BASTION \
   slurm-operator/docs/usage/oke-gb300-imex-dra-computedomain.yaml \
   slurm-operator/docs/usage/oke-gb300-imex-dra-overlay.values.yaml \
   slurm-operator/docs/usage/oke-gb300-ha-openldap-deploy.sh \
+  ubuntu@OPERATOR_PRIVATE_IP:/home/ubuntu/
+```
+
+For `BM.GPU.MI300X.8`:
+
+```bash
+scp -o ProxyJump=ubuntu@BASTION \
+  slurm-operator/docs/usage/oke-amd-mi300x-ha-openldap-prereqs.yaml \
+  slurm-operator/docs/usage/oke-amd-mi300x-ha-openldap.values.yaml \
+  slurm-operator/docs/usage/oke-amd-mi300x-ha-openldap-tls-config.ldif \
+  slurm-operator/docs/usage/oke-amd-mi300x-ha-openldap-primary-syncprov.ldif \
+  slurm-operator/docs/usage/oke-amd-mi300x-slurm-home-pvc.yaml \
+  slurm-operator/docs/usage/oke-amd-mi300x-mariadb.yaml \
+  slurm-operator/docs/usage/oke-amd-mi300x-hostnetwork-ha-openldap-slurm.values.yaml \
+  slurm-operator/docs/usage/oke-amd-mi300x-ha-openldap-deploy.sh \
+  slurm-operator/docs/usage/oke-amd-mi300x-slurm-rccl.sbatch \
   ubuntu@OPERATOR_PRIVATE_IP:/home/ubuntu/
 ```
 
@@ -247,6 +265,24 @@ Expected worker assumptions:
 - optional IMEX/DRA and NCCL test support through the combined NVML+NCCL
   worker image.
 
+For `BM.GPU.MI300X.8`:
+
+```bash
+kubectl get nodes -l node.kubernetes.io/instance-type=BM.GPU.MI300X.8 -o wide
+kubectl get pv fss-pv
+kubectl get storageclass oci-bv
+kubectl get pods -n kube-system | grep -i amd
+```
+
+Expected worker assumptions:
+
+- 8 GPUs per node;
+- Kubernetes GPU resource `amd.com/gpu`;
+- `hostNetwork`;
+- worker SSH on port `2222`;
+- `AutoDetect=rsmi`;
+- ROCm/RSMI/RCCL worker image.
+
 ## Step 3: Install cert-manager
 
 HA OpenLDAP TLS certificates are generated by cert-manager.
@@ -264,9 +300,9 @@ kubectl -n cert-manager rollout status deploy/cert-manager-cainjector --timeout=
 
 ## Step 4: Install the Slinky Operator
 
-Skip this step if you are using the GB300 fast path in
-[Step 9](#step-9-deploy-the-full-gb300-stack). The script installs or refreshes
-the operator for you.
+Skip this step if you are using a scripted full-stack path in
+[Step 9](#step-9-deploy-the-full-scripted-stack). The scripts install or
+refresh the operator for you.
 
 ```bash
 helm upgrade --install slurm-operator-crds \
@@ -290,9 +326,9 @@ The HA LDAP topology is one writable primary plus read replicas:
 - `openldap-readonly-0` and `openldap-readonly-1` serve reads;
 - SSSD clients use LDAPS and fail over between read and primary endpoints.
 
-For `BM.GPU.GB300.4`, the full deployment script runs this section for you. If
-you want the fast path, install cert-manager, then skip to
-[Step 9](#step-9-deploy-the-full-gb300-stack).
+For `BM.GPU.GB300.4` and `BM.GPU.MI300X.8`, the full deployment scripts run
+this section for you. If you want the fast path, install cert-manager, then skip
+to [Step 9](#step-9-deploy-the-full-scripted-stack).
 
 For `BM.GPU.GB200.4`, use the same commands with the `gb200` filenames:
 
@@ -344,7 +380,8 @@ fi
 ```
 
 For `BM.GPU.GB300.4`, use the same manual commands with `gb300` filenames if
-you are not using the script.
+you are not using the script. For `BM.GPU.MI300X.8`, use the same manual
+commands with `amd-mi300x` filenames.
 
 ## Step 6: Copy the LDAP CA to the Slurm Namespace
 
@@ -377,6 +414,13 @@ kubectl apply -f /home/ubuntu/oke-gb300-slurm-home-pvc.yaml
 kubectl -n slurm get pvc slurm-home
 ```
 
+For `BM.GPU.MI300X.8`, use:
+
+```bash
+kubectl apply -f /home/ubuntu/oke-amd-mi300x-slurm-home-pvc.yaml
+kubectl -n slurm get pvc slurm-home
+```
+
 The PVC should bind to `fss-pv`.
 
 Install the MariaDB operator and accounting database. For `BM.GPU.GB200.4`:
@@ -400,7 +444,8 @@ kubectl apply -f /home/ubuntu/oke-gb200-mariadb.yaml
 kubectl -n slurm wait --for=condition=Ready pod/mariadb-0 --timeout=420s
 ```
 
-For `BM.GPU.GB300.4`, replace `gb200` with `gb300`.
+For `BM.GPU.GB300.4`, replace `gb200` with `gb300`. For
+`BM.GPU.MI300X.8`, replace `gb200` with `amd-mi300x`.
 
 For `BM.GPU4.8`, create an equivalent `slurm-home` PVC bound to `fss-pv` and a
 MariaDB accounting database before applying the BM.GPU4.8 values overlay. The
@@ -422,6 +467,14 @@ For `BM.GPU.GB300.4`, if you are not using the deployment script:
 helm upgrade --install slurm oci://ghcr.io/slinkyproject/charts/slurm \
   -n slurm \
   -f /home/ubuntu/oke-gb300-hostnetwork-ha-openldap-slurm.values.yaml
+```
+
+For `BM.GPU.MI300X.8`, if you are not using the deployment script:
+
+```bash
+helm upgrade --install slurm oci://ghcr.io/slinkyproject/charts/slurm \
+  -n slurm \
+  -f /home/ubuntu/oke-amd-mi300x-hostnetwork-ha-openldap-slurm.values.yaml
 ```
 
 For `BM.GPU4.8`:
@@ -449,11 +502,14 @@ kubectl -n slurm wait --for=condition=Ready pod/slurm-worker-gb200-0 --timeout=4
 
 # GB300 only:
 kubectl -n slurm wait --for=condition=Ready pod/slurm-worker-gb300-0 --timeout=420s
+
+# AMD MI300X only:
+kubectl -n slurm wait --for=condition=Ready pod/slurm-worker-mi300x-0 --timeout=420s
 ```
 
 Use the actual worker pod name for `BM.GPU4.8`.
 
-## Step 9: Deploy the Full GB300 Stack
+## Step 9: Deploy the Full Scripted Stack
 
 For `BM.GPU.GB300.4`, the checked-in script is the preferred fast path:
 
@@ -474,6 +530,16 @@ The script:
 - creates `/home/alice` on FSS;
 - seeds the `project-a` Slurm account and Alice association;
 - prints a validation snapshot.
+
+For `BM.GPU.MI300X.8`, the checked-in script is the preferred fast path:
+
+```bash
+bash /home/ubuntu/oke-amd-mi300x-ha-openldap-deploy.sh
+```
+
+The MI300X script follows the same HA LDAP, FSS, accounting, Alice bootstrap,
+and validation flow, then deploys the AMD `hostNetwork` Slurm values with
+`AutoDetect=rsmi`.
 
 Use the manual sections above when adapting the stack to GB200 or BM.GPU4.8.
 
@@ -607,7 +673,7 @@ ssh -i /home/ubuntu/.ssh/devin_slurm_demo \
   'squeue -u devin; sacct -u devin --format=JobID,User,Account,State,ExitCode -P | tail'
 ```
 
-Submit a GPU smoke test:
+Submit a GPU smoke test. For NVIDIA shapes:
 
 ```bash
 ssh -i /home/ubuntu/.ssh/devin_slurm_demo \
@@ -615,6 +681,16 @@ ssh -i /home/ubuntu/.ssh/devin_slurm_demo \
   -o StrictHostKeyChecking=no \
   devin@"${LOGIN_IP}" \
   'sbatch -A project-devin --gres=gpu:1 --wrap="hostname; nvidia-smi -L"'
+```
+
+For `BM.GPU.MI300X.8`:
+
+```bash
+ssh -i /home/ubuntu/.ssh/devin_slurm_demo \
+  -o BatchMode=yes \
+  -o StrictHostKeyChecking=no \
+  devin@"${LOGIN_IP}" \
+  'sbatch -A project-devin --gres=gpu:1 --wrap="hostname; rocm-smi --showproductname --showdriverversion"'
 ```
 
 Check accounting after the job finishes:
@@ -633,7 +709,7 @@ The top-level job row should show `User=devin` and `Account=project-devin`.
 Batch and extern child rows may have an empty `User` column; that is normal
 Slurm accounting output.
 
-## Step 12: Run GB300 NCCL Tests
+## Step 12: Run GB300 NCCL or MI300X RCCL Tests
 
 This section applies to `BM.GPU.GB300.4` with the combined NVML+NCCL worker
 image:
@@ -677,6 +753,15 @@ Use this `all_reduce_perf` range for the demo:
 ```
 
 The validated GB300 run completed on 4 nodes and 16 GPUs with `0 OK`.
+
+For `BM.GPU.MI300X.8`, use the checked-in RCCL test log and Slurm batch script:
+
+```text
+slurm-operator/docs/usage/oke-amd-mi300x-rccl-test-log.md
+slurm-operator/docs/usage/oke-amd-mi300x-slurm-rccl.sbatch
+```
+
+The validated MI300X run completed across 2 nodes and 16 GPUs with `0 OK`.
 
 ## Step 13: Enable Optional GB300 IMEX/DRA
 
@@ -788,7 +873,7 @@ Accounting rejects jobs:
 - Confirm `AccountingStorageEnforce=associations,limits,qos` is set in the
   controller config.
 
-GB200 or GB300 worker SSH conflicts:
+GB200, GB300, or MI300X worker SSH conflicts:
 
 - Host-network workers need `Port 2222`.
 - Login pods still expose the normal SSH user entry point through the
@@ -824,4 +909,5 @@ Before handing the cluster to users, validate:
 - `sacct` shows the user, account, allocated GPU TRES, node list, and final
   state;
 - shape-specific GPU detection is correct in `sinfo` and `scontrol show node`;
-- GB300 NCCL and IMEX/DRA validations pass if those optional paths are enabled.
+- GB300 NCCL and IMEX/DRA validations pass if those optional paths are enabled;
+- MI300X RCCL validation passes if using the AMD ROCm path.
