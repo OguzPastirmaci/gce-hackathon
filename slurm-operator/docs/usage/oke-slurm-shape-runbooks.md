@@ -15,6 +15,7 @@ section's manifests and values. Do not mix worker values between shapes.
 | Shape | Tested worker mode | Worker architecture | GPU detection | Worker sshd |
 | --- | --- | --- | --- | --- |
 | `BM.GPU4.8` | SR-IOV/VF pod networking | `amd64` | `AutoDetect=nvml` with NUMA-shaped dynamic-node topology | normal pod-networked sshd |
+| `BM.GPU.MI300X.8` | `hostNetwork` | `amd64` | `AutoDetect=rsmi` | `Port 2222` because of hostNetwork |
 | `BM.GPU.GB200.4` | `hostNetwork` | `arm64` | `AutoDetect=nvml` only | `Port 2222` because of hostNetwork |
 | `BM.GPU.GB300.4` | `hostNetwork` | `arm64` | `AutoDetect=nvml` only | `Port 2222` because of hostNetwork |
 
@@ -109,6 +110,177 @@ kubectl -n slurm exec slurm-controller-0 -c slurmctld -- \
 kubectl -n slurm exec slurm-controller-0 -c slurmctld -- \
   scontrol show node gpu-b4-0 | grep -E 'Sockets=|CoresPerSocket=|ThreadsPerCore=|Gres=|Parameters='
 ```
+
+## Shape: BM.GPU.MI300X.8
+
+Use this section for AMD MI300X `BM.GPU.MI300X.8` clusters.
+
+Current tested assumptions:
+
+- worker architecture: `amd64`;
+- worker network mode in the tested cluster: `hostNetwork`;
+- expected GPU count: 8 GPUs per node;
+- Kubernetes GPU resource: `amd.com/gpu`;
+- Slurm GPU detection: `AutoDetect=rsmi`;
+- Slurm worker image:
+  `iad.ocir.io/idxzjcdglx2s/slinky:slurmd-rocm-rccl-25.11.5-rocm7.1.1-sssd-r2`;
+- worker sshd port: `2222`, only because `hostNetwork` would otherwise
+  conflict with the node's own sshd on port `22`;
+- controller/login/accounting/identity pods: pinned to CPU nodes in the tested
+  values;
+- FSS home PVC: `slurm-home`, bound to `fss-pv`;
+- identity path: HA OpenLDAP through SSSD in login, worker, and controller pods;
+- HA OpenLDAP values use `podAntiAffinityPreset: soft`, the chart's preferred
+  pod anti-affinity default;
+- accounting path: MariaDB plus SlurmDBD;
+- standalone Kueue/MPIJob RCCL testing requires launcher placement on CPU nodes,
+  not the upstream single-flavor launcher-on-GPU behavior.
+
+Primary docs and manifests:
+
+| File | Purpose |
+| --- | --- |
+| `docs/usage/oke-amd-mi300x-rccl-test-log.md` | AMD MI300X Slurm, RSMI, LDAP, accounting, RCCL, and Kueue test log |
+| `docs/usage/oke-amd-mi300x-ha-openldap-deploy.sh` | End-to-end AMD MI300X deploy script for HA OpenLDAP, FSS, MariaDB, Slurm, Alice bootstrap, and validation |
+| `docs/usage/oke-amd-mi300x-ha-openldap-prereqs.yaml` | Namespaces, cert-manager CA/server certs, and SSSD Secret |
+| `docs/usage/oke-amd-mi300x-ha-openldap.values.yaml` | HA OpenLDAP Helm values for one writable primary and two read replicas |
+| `docs/usage/oke-amd-mi300x-ha-openldap-tls-config.ldif` | OpenLDAP `cn=config` TLS fix used by this chart |
+| `docs/usage/oke-amd-mi300x-ha-openldap-primary-syncprov.ldif` | Primary `mdb` `syncprov` overlay required for read-replica replication |
+| `docs/usage/oke-amd-mi300x-slurm-home-pvc.yaml` | FSS-backed `/home` PVC bound to `fss-pv` |
+| `docs/usage/oke-amd-mi300x-mariadb.yaml` | MariaDB CR used by SlurmDBD accounting |
+| `docs/usage/oke-amd-mi300x-hostnetwork-ha-openldap-slurm.values.yaml` | Full AMD MI300X hostNetwork Slurm values with HA LDAP/SSSD/FSS/accounting |
+| `docs/usage/oke-amd-mi300x-kueue-rccl-tests-cpu-launcher.yaml` | Standalone Kueue/MPIJob RCCL manifest variant that schedules the launcher on CPU nodes |
+| `docs/usage/oke-amd-mi300x-slurm-rccl.sbatch` | Slurm `sbatch` example for the two-node, 16-GPU RCCL test |
+| `images/slurmd-rocm-rccl/Dockerfile` | Slurm 25.11.5 plus ROCm/RSMI/RCCL/SSSD worker image source |
+| `docs/usage/slinky-container-images.md` | Container image inventory, including the AMD ROCm/RSMI/RCCL worker image |
+
+Deployment order for the tested AMD MI300X path:
+
+1. From the workstation, copy the AMD MI300X files to the operator node:
+
+```bash
+scp -o ProxyJump=ubuntu@217.142.249.158 \
+  docs/usage/oke-amd-mi300x-ha-openldap-prereqs.yaml \
+  docs/usage/oke-amd-mi300x-ha-openldap.values.yaml \
+  docs/usage/oke-amd-mi300x-ha-openldap-tls-config.ldif \
+  docs/usage/oke-amd-mi300x-ha-openldap-primary-syncprov.ldif \
+  docs/usage/oke-amd-mi300x-slurm-home-pvc.yaml \
+  docs/usage/oke-amd-mi300x-mariadb.yaml \
+  docs/usage/oke-amd-mi300x-hostnetwork-ha-openldap-slurm.values.yaml \
+  docs/usage/oke-amd-mi300x-ha-openldap-deploy.sh \
+  docs/usage/oke-amd-mi300x-slurm-rccl.sbatch \
+  ubuntu@10.140.0.21:/home/ubuntu/
+```
+
+2. SSH to the AMD MI300X operator node:
+
+```bash
+ssh -J ubuntu@217.142.249.158 ubuntu@10.140.0.21
+export PATH=/home/ubuntu/bin:$PATH
+export OCI_CLI_AUTH=instance_principal
+```
+
+3. Verify the cluster matches the AMD MI300X hostNetwork path:
+
+```bash
+kubectl get nodes -l node.kubernetes.io/instance-type=BM.GPU.MI300X.8 -o wide
+kubectl get pv fss-pv
+kubectl get storageclass oci-bv
+kubectl get pods -n kube-system | grep -i amd
+```
+
+4. Run the end-to-end deployment script:
+
+```bash
+bash /home/ubuntu/oke-amd-mi300x-ha-openldap-deploy.sh
+```
+
+The script deploys HA OpenLDAP, applies the TLS and `syncprov` fixes, copies the
+LDAP CA into the `slurm` namespace, binds `/home` to `fss-pv`, installs MariaDB
+accounting, deploys Slurm, creates `/home/alice`, seeds `project-a` accounting,
+and runs a validation snapshot.
+
+Validated AMD MI300X Slurm end state:
+
+- `slurmd` runs Slurm `25.11.5` with `gpu_rsmi.so` and `gres_gpu.so`.
+- `slurmd` logs `gpu/rsmi: _get_system_gpu_list_rsmi: 8 GPU system device(s)
+  detected`.
+- Slurm registers each worker with
+  `Gres=gpu:amd_instinct_mi300x_oam:8(S:0-1)`.
+- `getent passwd alice` and `id alice` work in controller, login, and worker
+  pods through SSSD.
+- Slurm accounting records `alice` jobs under `Account=project-a`.
+- Single-node RCCL as `alice` completed with `0 OK`.
+- Two-node RCCL as `alice` completed with 16 GPUs using the same RCCL variables
+  as the working OCI Kubernetes MI300X MPIJob manifest. The current Slurm result
+  reported `0 OK` and `Avg bus bandwidth: 354.504 GB/s`.
+
+Run the two-node RCCL test through Slurm:
+
+```bash
+LOGIN_POD="$(kubectl -n slurm get pod -l app.kubernetes.io/component=login \
+  -o jsonpath='{.items[0].metadata.name}')"
+
+kubectl -n slurm cp /home/ubuntu/oke-amd-mi300x-slurm-rccl.sbatch \
+  "${LOGIN_POD}:/home/alice/oke-amd-mi300x-slurm-rccl.sbatch" \
+  -c login
+
+kubectl -n slurm exec "${LOGIN_POD}" -c login -- sh -lc '
+  chown alice:alice /home/alice/oke-amd-mi300x-slurm-rccl.sbatch
+  chmod 0644 /home/alice/oke-amd-mi300x-slurm-rccl.sbatch
+'
+
+LOGIN_IP="$(kubectl -n slurm get svc slurm-login-slinky \
+  -o jsonpath='{.status.loadBalancer.ingress[0].ip}')"
+
+ssh -i /home/ubuntu/.ssh/alice_slurm_test alice@"${LOGIN_IP}" \
+  'sbatch /home/alice/oke-amd-mi300x-slurm-rccl.sbatch'
+ssh -i /home/ubuntu/.ssh/alice_slurm_test alice@"${LOGIN_IP}" 'squeue -u alice'
+ssh -i /home/ubuntu/.ssh/alice_slurm_test alice@"${LOGIN_IP}" \
+  'sacct -j <job-id> --format=JobID,JobName,User,Account,State,ExitCode,Elapsed,AllocTRES%120 -P'
+ssh -i /home/ubuntu/.ssh/alice_slurm_test alice@"${LOGIN_IP}" \
+  'tail -n 120 /home/alice/rccl-mi300x-<job-id>.out'
+```
+
+Known AMD MI300X RDMA findings across tested clusters:
+
+- The upstream OCI RCCL settings use `UCX_NET_DEVICES=mlx5_0:1` and all eight
+  HCAs in `NCCL_IB_HCA`.
+- On this cluster, `rdma0/mlx5_0` timed out between nodes, and only
+  `rdma4/mlx5_5` plus `rdma5/mlx5_7` were reachable in both directions.
+- On the later current cluster, the same test completed with the upstream OCI
+  settings that use `UCX_NET_DEVICES=mlx5_0:1` and all eight HCAs in
+  `NCCL_IB_HCA`.
+- If a cluster still shows UCX endpoint timeouts on `mlx5_0`, restrict the test
+  to the reachable rails:
+
+```bash
+export UCX_NET_DEVICES=mlx5_5:1,mlx5_7:1
+export NCCL_IB_HCA==mlx5_5,mlx5_7
+```
+
+Standalone Kueue/MPIJob RCCL notes:
+
+- Scale the Slinky MI300X NodeSet to zero before using the standalone MPIJob:
+
+```bash
+kubectl -n slurm patch nodeset slurm-worker-mi300x --type=merge \
+  -p '{"spec":{"replicas":0}}'
+```
+
+- Scale the NodeSet back to two workers before returning to Slurm testing:
+
+```bash
+kubectl -n slurm patch nodeset slurm-worker-mi300x --type=merge \
+  -p '{"spec":{"replicas":2}}'
+```
+
+- The upstream raw OCI Kueue manifest was admitted but the launcher stayed
+  Pending in this cluster because it was constrained to MI300X nodes and did
+  not tolerate the `amd.com/gpu=present:NoSchedule` taint.
+- Use `docs/usage/oke-amd-mi300x-kueue-rccl-tests-cpu-launcher.yaml` when the
+  launcher should run on `VM.Standard.E5.Flex` and workers should run on
+  `BM.GPU.MI300X.8`.
 
 ## Shape: BM.GPU.GB200.4
 

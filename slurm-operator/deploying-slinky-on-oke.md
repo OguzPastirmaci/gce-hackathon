@@ -1,10 +1,5 @@
 # Deploying Slinky (Slurm on Kubernetes) on an OKE Cluster from oci-hpc-oke
 
-> For the full multi-user OKE deployment with Slinky Operator, HA OpenLDAP,
-> OCI FSS home directories, SlurmDBD accounting, and shape-specific worker
-> values, start with
-> [Start Here: Full Multi-User Slurm Operator on OKE](start-here-full-oke-slurm.md).
-
 ## What is Slinky?
 
 Slinky is SchedMD's Kubernetes operator for running Slurm clusters natively on Kubernetes. It unifies Kubernetes orchestration with Slurm's HPC scheduling, enabling GPU/RDMA workloads to be managed by Slurm while running as Kubernetes pods.

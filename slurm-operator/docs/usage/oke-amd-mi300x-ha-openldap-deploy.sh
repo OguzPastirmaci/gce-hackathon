@@ -4,8 +4,8 @@ set -euo pipefail
 export PATH=/home/ubuntu/bin:$PATH
 export OCI_CLI_AUTH=instance_principal
 
-echo "== GB300 cluster prerequisites =="
-kubectl get nodes -l node.kubernetes.io/instance-type=BM.GPU.GB300.4 -o wide
+echo "== MI300X cluster prerequisites =="
+kubectl get nodes -l node.kubernetes.io/instance-type=BM.GPU.MI300X.8 -o wide
 kubectl get pv fss-pv
 kubectl get storageclass oci-bv
 
@@ -28,14 +28,14 @@ kubectl -n slinky rollout status deployment/slurm-operator-webhook --timeout=180
 echo "== Deploy HA OpenLDAP prerequisites =="
 helm repo add helm-openldap https://jp-gouin.github.io/helm-openldap/ --force-update
 helm repo update helm-openldap
-kubectl apply -f /home/ubuntu/oke-gb300-ha-openldap-prereqs.yaml
+kubectl apply -f /home/ubuntu/oke-amd-mi300x-ha-openldap-prereqs.yaml
 kubectl -n identity wait --for=condition=Ready certificate/openldap-tls --timeout=180s
 
 echo "== Deploy HA OpenLDAP =="
 helm upgrade --install openldap helm-openldap/openldap-stack-ha \
   --version 4.3.3 \
   -n identity \
-  -f /home/ubuntu/oke-gb300-ha-openldap.values.yaml
+  -f /home/ubuntu/oke-amd-mi300x-ha-openldap.values.yaml
 kubectl -n identity rollout status statefulset/openldap --timeout=420s
 kubectl -n identity rollout status statefulset/openldap-readonly --timeout=420s
 
@@ -45,7 +45,7 @@ for pod in openldap-0 openldap-readonly-0 openldap-readonly-1; do
     /opt/bitnami/openldap/bin/ldapmodify \
       -x -H ldap://127.0.0.1:1389 \
       -D cn=admin,cn=config -w configpassword \
-    < /home/ubuntu/oke-gb300-ha-openldap-tls-config.ldif
+    < /home/ubuntu/oke-amd-mi300x-ha-openldap-tls-config.ldif
 done
 
 echo "== Ensure primary syncprov overlay exists =="
@@ -61,7 +61,7 @@ else
     /opt/bitnami/openldap/bin/ldapmodify -a \
       -x -H ldap://127.0.0.1:1389 \
       -D cn=admin,cn=config -w configpassword \
-    < /home/ubuntu/oke-gb300-ha-openldap-primary-syncprov.ldif
+    < /home/ubuntu/oke-amd-mi300x-ha-openldap-primary-syncprov.ldif
 fi
 
 echo "== Ensure Alice SSH test key and LDAP entries =="
@@ -183,7 +183,7 @@ kubectl -n slurm create secret generic openldap-ca \
   --dry-run=client -o yaml | kubectl apply -f -
 
 echo "== Deploy FSS-backed /home =="
-kubectl apply -f /home/ubuntu/oke-gb300-slurm-home-pvc.yaml
+kubectl apply -f /home/ubuntu/oke-amd-mi300x-slurm-home-pvc.yaml
 kubectl -n slurm get pvc slurm-home
 
 echo "== Deploy MariaDB operator and accounting database =="
@@ -195,17 +195,17 @@ helm upgrade --install mariadb-operator mariadb-operator/mariadb-operator \
   --namespace mariadb --create-namespace
 kubectl -n mariadb rollout status deploy/mariadb-operator-webhook --timeout=180s
 kubectl -n mariadb rollout status deploy/mariadb-operator-cert-controller --timeout=180s
-kubectl apply -f /home/ubuntu/oke-gb300-mariadb.yaml
+kubectl apply -f /home/ubuntu/oke-amd-mi300x-mariadb.yaml
 kubectl -n slurm wait --for=condition=Ready pod/mariadb-0 --timeout=420s
 
-echo "== Deploy Slurm with HA LDAP, FSS, accounting, and GB300 AutoDetect=nvml =="
+echo "== Deploy Slurm with HA LDAP, FSS, accounting, and AMD AutoDetect=rsmi =="
 helm upgrade --install slurm oci://ghcr.io/slinkyproject/charts/slurm \
   -n slurm \
-  -f /home/ubuntu/oke-gb300-hostnetwork-ha-openldap-slurm.values.yaml
+  -f /home/ubuntu/oke-amd-mi300x-hostnetwork-ha-openldap-slurm.values.yaml
 kubectl -n slurm wait --for=condition=Ready pod/slurm-controller-0 --timeout=420s
 kubectl -n slurm rollout status deploy/slurm-login-slinky --timeout=420s
 kubectl -n slurm rollout status statefulset/slurm-accounting --timeout=420s
-kubectl -n slurm wait --for=condition=Ready pod/slurm-worker-gb300-0 --timeout=420s
+kubectl -n slurm wait --for=condition=Ready pod/slurm-worker-mi300x-0 --timeout=900s
 
 echo "== Create Alice home on FSS =="
 kubectl -n slurm exec deploy/slurm-login-slinky -c login -- sh -lc '
@@ -230,6 +230,7 @@ kubectl -n slurm exec slurm-controller-0 -c slurmctld -- getent passwd alice
 kubectl -n slurm exec slurm-controller-0 -c slurmctld -- id alice
 kubectl -n slurm exec deploy/slurm-login-slinky -c login -- getent passwd alice
 kubectl -n slurm exec deploy/slurm-login-slinky -c login -- id alice
-kubectl -n slurm exec slurm-worker-gb300-0 -c slurmd -- getent passwd alice
-kubectl -n slurm exec slurm-worker-gb300-0 -c slurmd -- id alice
+kubectl -n slurm exec slurm-worker-mi300x-0 -c slurmd -- getent passwd alice
+kubectl -n slurm exec slurm-worker-mi300x-0 -c slurmd -- id alice
 kubectl -n slurm exec slurm-controller-0 -c slurmctld -- sinfo -N -o "%N|%t|%C|%m|%G|%E"
+kubectl -n slurm exec slurm-controller-0 -c slurmctld -- scontrol show node | egrep "NodeName=|Gres=|CfgTRES=|AllocTRES=|Reason=|State="
