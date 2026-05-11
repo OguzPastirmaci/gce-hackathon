@@ -299,11 +299,11 @@ LDAP is not available or not desired.
 
 Keep two LDAP paths documented and separate:
 
-- [LDAP/SSSD Disposable Test Runbook](ldap-sssd-disposable-test.md) deploys the
+- [LDAP/SSSD Disposable Test Runbook](oke-ldap-sssd-disposable-test.md) deploys the
   current single-pod `openldap-test` validation environment. Use it to prove
   SSSD, SSH login, FSS homes, Slurm accounting, and GPU job attribution end to
   end. Do not use it as the production identity service.
-- [HA OpenLDAP for Slurm Identity on Kubernetes](ldap-sssd-ha-openldap.md)
+- [HA OpenLDAP for Slurm Identity on Kubernetes](oke-ldap-sssd-ha-openldap.md)
   describes the production in-cluster LDAP direction: a StatefulSet with one
   writable primary and read replicas, TLS, replication, backups, and SSSD
   failover.

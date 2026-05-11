@@ -47,7 +47,7 @@ gb300_b1: 10.140.79.152, 10.140.93.120
 Overlay:
 
 ```text
-docs/usage/oke-gb300-topology-block-test.values.yaml
+docs/usage/manifests/oke-gb300-topology-block-test.values.yaml
 ```
 
 ## Apply
@@ -56,7 +56,7 @@ Copied the overlay to the operator node:
 
 ```bash
 scp -J ubuntu@151.106.182.43 \
-  docs/usage/oke-gb300-topology-block-test.values.yaml \
+  docs/usage/manifests/oke-gb300-topology-block-test.values.yaml \
   ubuntu@10.140.0.20:/home/ubuntu/values-gb300-topology-block-test.yaml
 ```
 
@@ -219,7 +219,7 @@ Result: Slurm packed each 2-node job within one block.
 Created a reusable sbatch file:
 
 ```text
-docs/usage/nccl-imex-demo-gb300.sbatch
+docs/usage/jobs/nccl-imex-demo-gb300.sbatch
 ```
 
 Copied it to `/home/alice/nccl-imex-demo-gb300.sbatch` and submitted it as

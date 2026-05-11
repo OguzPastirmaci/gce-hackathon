@@ -59,7 +59,7 @@ lb_3bf4jpavrba:
 Overlay:
 
 ```text
-docs/usage/oke-gb300-oci-label-topology-test.values.yaml
+docs/usage/manifests/oke-gb300-oci-label-topology-test.values.yaml
 ```
 
 ## Result
@@ -99,7 +99,7 @@ Applied the fixed overlay:
 
 ```bash
 scp -J ubuntu@151.106.182.43 \
-  docs/usage/oke-gb300-oci-label-topology-test.values.yaml \
+  docs/usage/manifests/oke-gb300-oci-label-topology-test.values.yaml \
   ubuntu@10.140.0.20:/home/ubuntu/values-gb300-oci-label-topology-test.yaml
 
 ssh -J ubuntu@151.106.182.43 ubuntu@10.140.0.20
@@ -214,7 +214,7 @@ JobID|User|Account|State|ExitCode|NodeList
 - `slurm-controller-0` is Ready and `scontrol ping` reports UP.
 - The live topology source is the Kubernetes annotation
   `topology.slinky.slurm.net/spec` populated from OCI RDMA labels.
-- `docs/usage/oke-gb300-oci-label-topology-test.values.yaml` intentionally
+- `docs/usage/manifests/oke-gb300-oci-label-topology-test.values.yaml` intentionally
   keeps the legacy manual topology during migration. Once all Slurm node state
   is persisted as `topo-oci-local-block:lb_3bf4jpavrba`, the old
   `topo-gb300-block` entry can be removed in a separate cleanup step.

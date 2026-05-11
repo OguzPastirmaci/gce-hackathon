@@ -6,7 +6,7 @@ Directory integration.
 
 This is not a production LDAP design. It exists to validate the Slurm-side path.
 For an in-cluster production LDAP direction, use
-[HA OpenLDAP for Slurm Identity on Kubernetes](ldap-sssd-ha-openldap.md).
+[HA OpenLDAP for Slurm Identity on Kubernetes](oke-ldap-sssd-ha-openldap.md).
 
 ## Shape: BM.GPU4.8
 

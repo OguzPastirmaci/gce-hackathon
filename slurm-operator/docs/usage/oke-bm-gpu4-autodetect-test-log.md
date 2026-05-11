@@ -168,7 +168,7 @@ instances produce 4-core socket domains on this host.
 The working values overlay is saved at:
 
 ```text
-docs/usage/oke-bm-gpu4-8-fss-sssd-ha-openldap-controller-sssd-autodetect-nvml-numa-topology.overlay.yaml
+docs/usage/manifests/oke-bm-gpu4-8-fss-sssd-ha-openldap-controller-sssd-autodetect-nvml-numa-topology.overlay.yaml
 ```
 
 Remote copy used for the live test:
@@ -484,7 +484,7 @@ Slurm node:
 ```
 
 The runnable validation script is saved at
-`docs/usage/nccl-sriov-pmix-8gpu-16vf.sbatch`. It requests GPUs from Slurm and
+`docs/usage/jobs/nccl-sriov-pmix-8gpu-16vf.sbatch`. It requests GPUs from Slurm and
 fails early if an allocated worker pod does not see 16 RDMA VFs:
 
 ```bash

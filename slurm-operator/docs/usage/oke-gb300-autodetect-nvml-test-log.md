@@ -104,7 +104,7 @@ This suggests the GB300 path should not need the BM.GPU4.8
 ## Working Values Under Test
 
 ```text
-docs/usage/oke-gb300-hostnetwork-autodetect-nvml.values.yaml
+docs/usage/manifests/oke-gb300-hostnetwork-autodetect-nvml.values.yaml
 ```
 
 The values intentionally use:
@@ -125,14 +125,14 @@ User requested the GB300 path with HA LDAP, not the minimal Slurm-only
 deployment. I created GB300-specific copies of the GB200 HA assets:
 
 ```text
-docs/usage/oke-gb300-ha-openldap-prereqs.yaml
-docs/usage/oke-gb300-ha-openldap.values.yaml
-docs/usage/oke-gb300-ha-openldap-tls-config.ldif
-docs/usage/oke-gb300-ha-openldap-primary-syncprov.ldif
-docs/usage/oke-gb300-slurm-home-pvc.yaml
-docs/usage/oke-gb300-mariadb.yaml
-docs/usage/oke-gb300-hostnetwork-ha-openldap-slurm.values.yaml
-docs/usage/oke-gb300-ha-openldap-deploy.sh
+docs/usage/manifests/oke-gb300-ha-openldap-prereqs.yaml
+docs/usage/manifests/oke-gb300-ha-openldap.values.yaml
+docs/usage/ldif/oke-gb300-ha-openldap-tls-config.ldif
+docs/usage/ldif/oke-gb300-ha-openldap-primary-syncprov.ldif
+docs/usage/manifests/oke-gb300-slurm-home-pvc.yaml
+docs/usage/manifests/oke-gb300-mariadb.yaml
+docs/usage/manifests/oke-gb300-hostnetwork-ha-openldap-slurm.values.yaml
+docs/usage/scripts/oke-gb300-ha-openldap-deploy.sh
 ```
 
 The GB300 Slurm HA values keep:
@@ -153,14 +153,14 @@ Copied the GB300 files to the operator node:
 
 ```bash
 scp -o BatchMode=yes -o ProxyJump=ubuntu@151.106.182.43 \
-  docs/usage/oke-gb300-ha-openldap-prereqs.yaml \
-  docs/usage/oke-gb300-ha-openldap.values.yaml \
-  docs/usage/oke-gb300-ha-openldap-tls-config.ldif \
-  docs/usage/oke-gb300-ha-openldap-primary-syncprov.ldif \
-  docs/usage/oke-gb300-slurm-home-pvc.yaml \
-  docs/usage/oke-gb300-mariadb.yaml \
-  docs/usage/oke-gb300-hostnetwork-ha-openldap-slurm.values.yaml \
-  docs/usage/oke-gb300-ha-openldap-deploy.sh \
+  docs/usage/manifests/oke-gb300-ha-openldap-prereqs.yaml \
+  docs/usage/manifests/oke-gb300-ha-openldap.values.yaml \
+  docs/usage/ldif/oke-gb300-ha-openldap-tls-config.ldif \
+  docs/usage/ldif/oke-gb300-ha-openldap-primary-syncprov.ldif \
+  docs/usage/manifests/oke-gb300-slurm-home-pvc.yaml \
+  docs/usage/manifests/oke-gb300-mariadb.yaml \
+  docs/usage/manifests/oke-gb300-hostnetwork-ha-openldap-slurm.values.yaml \
+  docs/usage/scripts/oke-gb300-ha-openldap-deploy.sh \
   ubuntu@10.140.0.20:/home/ubuntu/
 ```
 
@@ -242,7 +242,7 @@ the `slurm` namespace, bound `slurm-home` to `fss-pv`, deployed MariaDB
 accounting, and deployed Slurm with:
 
 ```text
-docs/usage/oke-gb300-hostnetwork-ha-openldap-slurm.values.yaml
+docs/usage/manifests/oke-gb300-hostnetwork-ha-openldap-slurm.values.yaml
 ```
 
 The original version of the script stopped after Slurm deployment because it
@@ -707,8 +707,8 @@ The initial GB300 worker pod saw only the default IMEX channel:
 
 Created separate manifests:
 
-- `docs/usage/oke-gb300-imex-dra-computedomain.yaml`
-- `docs/usage/oke-gb300-imex-dra-overlay.values.yaml`
+- `docs/usage/manifests/oke-gb300-imex-dra-computedomain.yaml`
+- `docs/usage/manifests/oke-gb300-imex-dra-overlay.values.yaml`
 
 The packaged `ghcr.io/slinkyproject/charts/slurm:1.1.0` chart did not render
 the local chart's `extraObjects` helper, so the ComputeDomain is applied as a
@@ -1265,7 +1265,7 @@ selection.
 Added a lightweight probe script:
 
 ```text
-docs/usage/imex-per-job-channel-check.sbatch
+docs/usage/jobs/imex-per-job-channel-check.sbatch
 ```
 
 The script prints the visible IMEX channel device from inside a Slurm job:

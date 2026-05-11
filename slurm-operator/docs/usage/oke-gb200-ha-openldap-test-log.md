@@ -41,13 +41,13 @@ Shape-specific assumptions:
 ## Local Files
 
 ```text
-docs/usage/oke-gb200-ha-openldap-prereqs.yaml
-docs/usage/oke-gb200-ha-openldap.values.yaml
-docs/usage/oke-gb200-hostnetwork-ha-openldap-slurm.values.yaml
-docs/usage/oke-gb200-slurm-home-pvc.yaml
-docs/usage/oke-gb200-mariadb.yaml
-docs/usage/oke-gb200-ha-openldap-tls-config.ldif
-docs/usage/oke-gb200-ha-openldap-primary-syncprov.ldif
+docs/usage/manifests/oke-gb200-ha-openldap-prereqs.yaml
+docs/usage/manifests/oke-gb200-ha-openldap.values.yaml
+docs/usage/manifests/oke-gb200-hostnetwork-ha-openldap-slurm.values.yaml
+docs/usage/manifests/oke-gb200-slurm-home-pvc.yaml
+docs/usage/manifests/oke-gb200-mariadb.yaml
+docs/usage/ldif/oke-gb200-ha-openldap-tls-config.ldif
+docs/usage/ldif/oke-gb200-ha-openldap-primary-syncprov.ldif
 ```
 
 ## Notes
@@ -69,12 +69,12 @@ docs/usage/oke-gb200-ha-openldap-primary-syncprov.ldif
   images are confirmed multi-platform too.
 - The OpenLDAP chart mounted the cert-manager TLS Secret and opened port `1636`,
   but `cn=config` did not initially contain the `olcTLS*` attributes. Apply
-  `oke-gb200-ha-openldap-tls-config.ldif` to each OpenLDAP pod if LDAPS returns
+  `ldif/oke-gb200-ha-openldap-tls-config.ldif` to each OpenLDAP pod if LDAPS returns
   `Can't contact LDAP server` during the handshake.
 - The primary `mdb` database also needs the `syncprov` overlay. Without it, the
   read-only replicas can bind to the primary over StartTLS and read all entries,
   but they do not apply the replicated contents locally. Apply
-  `oke-gb200-ha-openldap-primary-syncprov.ldif` to `openldap-0` if replica
+  `ldif/oke-gb200-ha-openldap-primary-syncprov.ldif` to `openldap-0` if replica
   searches return `No such object` while the primary has the entries.
 
 ## HA OpenLDAP Validation

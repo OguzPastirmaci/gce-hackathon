@@ -413,7 +413,7 @@ EOF
 The same sbatch content is tracked in the repo as:
 
 ```text
-docs/usage/nccl-imex-demo-gb300.sbatch
+docs/usage/jobs/nccl-imex-demo-gb300.sbatch
 ```
 
 Why `--gres=gpu:4` instead of `--gpus-per-task=1`: this `nccl-tests` build
@@ -530,7 +530,7 @@ If the probe file is not already on the operator node, copy it from the repo:
 
 ```bash
 scp -o ProxyJump=ubuntu@151.106.182.43 \
-  docs/usage/imex-per-job-channel-check.sbatch \
+  docs/usage/jobs/imex-per-job-channel-check.sbatch \
   ubuntu@10.140.0.20:/home/ubuntu/imex-per-job-channel-check.sbatch
 ```
 

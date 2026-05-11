@@ -2,11 +2,11 @@
 #
 # Apply on top of the tested GB300 HA LDAP/FSS/accounting values with:
 #
-#   kubectl apply -f docs/usage/oke-gb300-imex-dra-computedomain.yaml
+#   kubectl apply -f docs/usage/manifests/oke-gb300-imex-dra-computedomain.yaml
 #   helm -n slurm upgrade slurm oci://ghcr.io/slinkyproject/charts/slurm \
 #     --version 1.1.0 \
 #     --reuse-values \
-#     -f docs/usage/oke-gb300-imex-dra-overlay.values.yaml
+#     -f docs/usage/manifests/oke-gb300-imex-dra-overlay.values.yaml
 #
 # This overlay keeps GPU allocation on the NVIDIA device plugin:
 #

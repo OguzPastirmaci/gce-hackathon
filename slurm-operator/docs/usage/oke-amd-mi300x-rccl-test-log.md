@@ -37,16 +37,16 @@ Kueue and MPIJob CRDs/operators installed
 ## Files
 
 ```text
-docs/usage/oke-amd-mi300x-ha-openldap-prereqs.yaml
-docs/usage/oke-amd-mi300x-ha-openldap.values.yaml
-docs/usage/oke-amd-mi300x-ha-openldap-tls-config.ldif
-docs/usage/oke-amd-mi300x-ha-openldap-primary-syncprov.ldif
-docs/usage/oke-amd-mi300x-slurm-home-pvc.yaml
-docs/usage/oke-amd-mi300x-mariadb.yaml
-docs/usage/oke-amd-mi300x-hostnetwork-ha-openldap-slurm.values.yaml
-docs/usage/oke-amd-mi300x-ha-openldap-deploy.sh
-docs/usage/oke-amd-mi300x-kueue-rccl-tests-cpu-launcher.yaml
-docs/usage/oke-amd-mi300x-slurm-rccl.sbatch
+docs/usage/manifests/oke-amd-mi300x-ha-openldap-prereqs.yaml
+docs/usage/manifests/oke-amd-mi300x-ha-openldap.values.yaml
+docs/usage/ldif/oke-amd-mi300x-ha-openldap-tls-config.ldif
+docs/usage/ldif/oke-amd-mi300x-ha-openldap-primary-syncprov.ldif
+docs/usage/manifests/oke-amd-mi300x-slurm-home-pvc.yaml
+docs/usage/manifests/oke-amd-mi300x-mariadb.yaml
+docs/usage/manifests/oke-amd-mi300x-hostnetwork-ha-openldap-slurm.values.yaml
+docs/usage/scripts/oke-amd-mi300x-ha-openldap-deploy.sh
+docs/usage/manifests/oke-amd-mi300x-kueue-rccl-tests-cpu-launcher.yaml
+docs/usage/jobs/oke-amd-mi300x-slurm-rccl.sbatch
 images/slurmd-rocm-rccl/Dockerfile
 ```
 
@@ -219,7 +219,7 @@ Cause:
 - non-GPU nodes could not be used because of the injected GPU selector.
 
 The local variant
-`docs/usage/oke-amd-mi300x-kueue-rccl-tests-cpu-launcher.yaml` adds a CPU
+`docs/usage/manifests/oke-amd-mi300x-kueue-rccl-tests-cpu-launcher.yaml` adds a CPU
 ResourceFlavor and pins the launcher to `VM.Standard.E5.Flex`, while keeping
 workers on `BM.GPU.MI300X.8`.
 
@@ -319,7 +319,7 @@ The Slurm worker image contained both supported RCCL test paths:
 /usr/local/bin/all_reduce_perf -> /opt/oci-hpc/rccl-tests/bin/all_reduce_perf
 ```
 
-`docs/usage/oke-amd-mi300x-slurm-rccl.sbatch` captures the Slurm version of the
+`docs/usage/jobs/oke-amd-mi300x-slurm-rccl.sbatch` captures the Slurm version of the
 working Kubernetes MPIJob command. The Slurm job uses the same RCCL/OpenMPI
 variables as the OCI manifest, but replaces the MPIJob ssh launcher settings
 with OpenMPI's Slurm launcher:

@@ -41,9 +41,9 @@ Primary docs and manifests:
 
 | File | Purpose |
 | --- | --- |
-| `docs/usage/ldap-sssd-disposable-test.md` | Disposable LDAP/SSSD/FSS/accounting validation runbook for the BM.GPU4.8 path |
-| `docs/usage/ldap-sssd-ha-openldap.md` | Production HA OpenLDAP identity design; use the BM.GPU4.8 shape notes in that guide |
-| `docs/usage/oke-bm-gpu4-8-fss-sssd-ha-openldap-controller-sssd-autodetect-nvml-numa-topology.overlay.yaml` | BM.GPU4.8 values overlay for the SR-IOV/FSS/SSSD/accounting path |
+| `docs/usage/oke-ldap-sssd-disposable-test.md` | Disposable LDAP/SSSD/FSS/accounting validation runbook for the BM.GPU4.8 path |
+| `docs/usage/oke-ldap-sssd-ha-openldap.md` | Production HA OpenLDAP identity design; use the BM.GPU4.8 shape notes in that guide |
+| `docs/usage/manifests/oke-bm-gpu4-8-fss-sssd-ha-openldap-controller-sssd-autodetect-nvml-numa-topology.overlay.yaml` | BM.GPU4.8 values overlay for the SR-IOV/FSS/SSSD/accounting path |
 | `docs/usage/oke-bm-gpu4-autodetect-test-log.md` | BM.GPU4.8 `AutoDetect=nvml` investigation log |
 
 Important result from the BM.GPU4.8 `AutoDetect=nvml` investigation:
@@ -59,14 +59,14 @@ Important result from the BM.GPU4.8 `AutoDetect=nvml` investigation:
 
 Deployment order for the BM.GPU4.8 identity path:
 
-1. Use `ldap-sssd-disposable-test.md` for the disposable LDAP validation path,
-   or use `ldap-sssd-ha-openldap.md` for the HA LDAP design.
+1. Use `oke-ldap-sssd-disposable-test.md` for the disposable LDAP validation path,
+   or use `oke-ldap-sssd-ha-openldap.md` for the HA LDAP design.
 2. From the workstation, copy the BM.GPU4.8 Slurm values overlay to the
    operator node. For the tested BM.GPU4.8 cluster:
 
 ```bash
 scp -o ProxyJump=ubuntu@152.67.124.58 \
-  docs/usage/oke-bm-gpu4-8-fss-sssd-ha-openldap-controller-sssd-autodetect-nvml-numa-topology.overlay.yaml \
+  docs/usage/manifests/oke-bm-gpu4-8-fss-sssd-ha-openldap-controller-sssd-autodetect-nvml-numa-topology.overlay.yaml \
   ubuntu@10.140.0.18:/home/ubuntu/values-fresh-nvml-autodetect-numa-topology.yaml
 ```
 
@@ -141,18 +141,18 @@ Primary docs and manifests:
 | File | Purpose |
 | --- | --- |
 | `docs/usage/oke-amd-mi300x-rccl-test-log.md` | AMD MI300X Slurm, RSMI, LDAP, accounting, RCCL, and Kueue test log |
-| `docs/usage/oke-amd-mi300x-ha-openldap-deploy.sh` | End-to-end AMD MI300X deploy script for HA OpenLDAP, FSS, MariaDB, Slurm, Alice bootstrap, and validation |
-| `docs/usage/oke-amd-mi300x-ha-openldap-prereqs.yaml` | Namespaces, cert-manager CA/server certs, and SSSD Secret |
-| `docs/usage/oke-amd-mi300x-ha-openldap.values.yaml` | HA OpenLDAP Helm values for one writable primary and two read replicas |
-| `docs/usage/oke-amd-mi300x-ha-openldap-tls-config.ldif` | OpenLDAP `cn=config` TLS fix used by this chart |
-| `docs/usage/oke-amd-mi300x-ha-openldap-primary-syncprov.ldif` | Primary `mdb` `syncprov` overlay required for read-replica replication |
-| `docs/usage/oke-amd-mi300x-slurm-home-pvc.yaml` | FSS-backed `/home` PVC bound to `fss-pv` |
-| `docs/usage/oke-amd-mi300x-mariadb.yaml` | MariaDB CR used by SlurmDBD accounting |
-| `docs/usage/oke-amd-mi300x-hostnetwork-ha-openldap-slurm.values.yaml` | Full AMD MI300X hostNetwork Slurm values with HA LDAP/SSSD/FSS/accounting |
-| `docs/usage/oke-amd-mi300x-kueue-rccl-tests-cpu-launcher.yaml` | Standalone Kueue/MPIJob RCCL manifest variant that schedules the launcher on CPU nodes |
-| `docs/usage/oke-amd-mi300x-slurm-rccl.sbatch` | Slurm `sbatch` example for the two-node, 16-GPU RCCL test |
+| `docs/usage/scripts/oke-amd-mi300x-ha-openldap-deploy.sh` | End-to-end AMD MI300X deploy script for HA OpenLDAP, FSS, MariaDB, Slurm, Alice bootstrap, and validation |
+| `docs/usage/manifests/oke-amd-mi300x-ha-openldap-prereqs.yaml` | Namespaces, cert-manager CA/server certs, and SSSD Secret |
+| `docs/usage/manifests/oke-amd-mi300x-ha-openldap.values.yaml` | HA OpenLDAP Helm values for one writable primary and two read replicas |
+| `docs/usage/ldif/oke-amd-mi300x-ha-openldap-tls-config.ldif` | OpenLDAP `cn=config` TLS fix used by this chart |
+| `docs/usage/ldif/oke-amd-mi300x-ha-openldap-primary-syncprov.ldif` | Primary `mdb` `syncprov` overlay required for read-replica replication |
+| `docs/usage/manifests/oke-amd-mi300x-slurm-home-pvc.yaml` | FSS-backed `/home` PVC bound to `fss-pv` |
+| `docs/usage/manifests/oke-amd-mi300x-mariadb.yaml` | MariaDB CR used by SlurmDBD accounting |
+| `docs/usage/manifests/oke-amd-mi300x-hostnetwork-ha-openldap-slurm.values.yaml` | Full AMD MI300X hostNetwork Slurm values with HA LDAP/SSSD/FSS/accounting |
+| `docs/usage/manifests/oke-amd-mi300x-kueue-rccl-tests-cpu-launcher.yaml` | Standalone Kueue/MPIJob RCCL manifest variant that schedules the launcher on CPU nodes |
+| `docs/usage/jobs/oke-amd-mi300x-slurm-rccl.sbatch` | Slurm `sbatch` example for the two-node, 16-GPU RCCL test |
 | `images/slurmd-rocm-rccl/Dockerfile` | Slurm 25.11.5 plus ROCm/RSMI/RCCL/SSSD worker image source |
-| `docs/usage/slinky-container-images.md` | Container image inventory, including the AMD ROCm/RSMI/RCCL worker image |
+| `docs/usage/oke-slinky-container-images.md` | Container image inventory, including the AMD ROCm/RSMI/RCCL worker image |
 
 Deployment order for the tested AMD MI300X path:
 
@@ -160,15 +160,15 @@ Deployment order for the tested AMD MI300X path:
 
 ```bash
 scp -o ProxyJump=ubuntu@217.142.249.158 \
-  docs/usage/oke-amd-mi300x-ha-openldap-prereqs.yaml \
-  docs/usage/oke-amd-mi300x-ha-openldap.values.yaml \
-  docs/usage/oke-amd-mi300x-ha-openldap-tls-config.ldif \
-  docs/usage/oke-amd-mi300x-ha-openldap-primary-syncprov.ldif \
-  docs/usage/oke-amd-mi300x-slurm-home-pvc.yaml \
-  docs/usage/oke-amd-mi300x-mariadb.yaml \
-  docs/usage/oke-amd-mi300x-hostnetwork-ha-openldap-slurm.values.yaml \
-  docs/usage/oke-amd-mi300x-ha-openldap-deploy.sh \
-  docs/usage/oke-amd-mi300x-slurm-rccl.sbatch \
+  docs/usage/manifests/oke-amd-mi300x-ha-openldap-prereqs.yaml \
+  docs/usage/manifests/oke-amd-mi300x-ha-openldap.values.yaml \
+  docs/usage/ldif/oke-amd-mi300x-ha-openldap-tls-config.ldif \
+  docs/usage/ldif/oke-amd-mi300x-ha-openldap-primary-syncprov.ldif \
+  docs/usage/manifests/oke-amd-mi300x-slurm-home-pvc.yaml \
+  docs/usage/manifests/oke-amd-mi300x-mariadb.yaml \
+  docs/usage/manifests/oke-amd-mi300x-hostnetwork-ha-openldap-slurm.values.yaml \
+  docs/usage/scripts/oke-amd-mi300x-ha-openldap-deploy.sh \
+  docs/usage/jobs/oke-amd-mi300x-slurm-rccl.sbatch \
   ubuntu@10.140.0.21:/home/ubuntu/
 ```
 
@@ -278,7 +278,7 @@ kubectl -n slurm patch nodeset slurm-worker-mi300x --type=merge \
 - The upstream raw OCI Kueue manifest was admitted but the launcher stayed
   Pending in this cluster because it was constrained to MI300X nodes and did
   not tolerate the `amd.com/gpu=present:NoSchedule` taint.
-- Use `docs/usage/oke-amd-mi300x-kueue-rccl-tests-cpu-launcher.yaml` when the
+- Use `docs/usage/manifests/oke-amd-mi300x-kueue-rccl-tests-cpu-launcher.yaml` when the
   launcher should run on `VM.Standard.E5.Flex` and workers should run on
   `BM.GPU.MI300X.8`.
 
@@ -306,14 +306,14 @@ Primary docs and manifests:
 | File | Purpose |
 | --- | --- |
 | `docs/usage/oke-gb200-ha-openldap-test-log.md` | End-to-end GB200 HA OpenLDAP, SSSD, FSS, SSH, Slurm, and accounting validation log |
-| `docs/usage/oke-gb200-ha-openldap-prereqs.yaml` | Namespaces, cert-manager CA/server certs, and SSSD Secret |
-| `docs/usage/oke-gb200-ha-openldap.values.yaml` | HA OpenLDAP Helm values for one writable primary and two read replicas |
-| `docs/usage/oke-gb200-ha-openldap-tls-config.ldif` | OpenLDAP `cn=config` TLS fix used by this chart |
-| `docs/usage/oke-gb200-ha-openldap-primary-syncprov.ldif` | Primary `mdb` `syncprov` overlay required for read-replica replication |
-| `docs/usage/oke-gb200-slurm-home-pvc.yaml` | FSS-backed `/home` PVC bound to `fss-pv` |
-| `docs/usage/oke-gb200-mariadb.yaml` | MariaDB CR used by SlurmDBD accounting |
-| `docs/usage/oke-gb200-hostnetwork-ha-openldap-slurm.values.yaml` | Full GB200 hostNetwork Slurm values with HA LDAP/SSSD/FSS/accounting |
-| `docs/usage/oke-gb200-hostnetwork-autodetect-nvml.values.yaml` | Minimal GB200 hostNetwork `AutoDetect=nvml` Slurm validation values |
+| `docs/usage/manifests/oke-gb200-ha-openldap-prereqs.yaml` | Namespaces, cert-manager CA/server certs, and SSSD Secret |
+| `docs/usage/manifests/oke-gb200-ha-openldap.values.yaml` | HA OpenLDAP Helm values for one writable primary and two read replicas |
+| `docs/usage/ldif/oke-gb200-ha-openldap-tls-config.ldif` | OpenLDAP `cn=config` TLS fix used by this chart |
+| `docs/usage/ldif/oke-gb200-ha-openldap-primary-syncprov.ldif` | Primary `mdb` `syncprov` overlay required for read-replica replication |
+| `docs/usage/manifests/oke-gb200-slurm-home-pvc.yaml` | FSS-backed `/home` PVC bound to `fss-pv` |
+| `docs/usage/manifests/oke-gb200-mariadb.yaml` | MariaDB CR used by SlurmDBD accounting |
+| `docs/usage/manifests/oke-gb200-hostnetwork-ha-openldap-slurm.values.yaml` | Full GB200 hostNetwork Slurm values with HA LDAP/SSSD/FSS/accounting |
+| `docs/usage/manifests/oke-gb200-hostnetwork-autodetect-nvml.values.yaml` | Minimal GB200 hostNetwork `AutoDetect=nvml` Slurm validation values |
 | `docs/usage/oke-gb200-autodetect-nvml-test-log.md` | GB200 `AutoDetect=nvml` image build and validation log |
 
 Deployment order for the tested GB200 path:
@@ -324,13 +324,13 @@ Deployment order for the tested GB200 path:
 
 ```bash
 scp -o ProxyJump=ubuntu@192.9.189.161 \
-  docs/usage/oke-gb200-ha-openldap-prereqs.yaml \
-  docs/usage/oke-gb200-ha-openldap.values.yaml \
-  docs/usage/oke-gb200-ha-openldap-tls-config.ldif \
-  docs/usage/oke-gb200-ha-openldap-primary-syncprov.ldif \
-  docs/usage/oke-gb200-slurm-home-pvc.yaml \
-  docs/usage/oke-gb200-mariadb.yaml \
-  docs/usage/oke-gb200-hostnetwork-ha-openldap-slurm.values.yaml \
+  docs/usage/manifests/oke-gb200-ha-openldap-prereqs.yaml \
+  docs/usage/manifests/oke-gb200-ha-openldap.values.yaml \
+  docs/usage/ldif/oke-gb200-ha-openldap-tls-config.ldif \
+  docs/usage/ldif/oke-gb200-ha-openldap-primary-syncprov.ldif \
+  docs/usage/manifests/oke-gb200-slurm-home-pvc.yaml \
+  docs/usage/manifests/oke-gb200-mariadb.yaml \
+  docs/usage/manifests/oke-gb200-hostnetwork-ha-openldap-slurm.values.yaml \
   ubuntu@10.140.0.20:/home/ubuntu/
 ```
 
@@ -457,25 +457,25 @@ Primary docs and manifests:
 | File | Purpose |
 | --- | --- |
 | `docs/usage/oke-gb300-autodetect-nvml-test-log.md` | GB300 deployment, HA LDAP, SSSD, FSS, SSH, Slurm, accounting, and AutoDetect validation log |
-| `docs/usage/oke-gb300-ha-openldap-deploy.sh` | End-to-end GB300 deploy script for HA OpenLDAP, FSS, MariaDB, Slurm, Alice bootstrap, and validation |
-| `docs/usage/oke-gb300-ha-openldap-prereqs.yaml` | Namespaces, cert-manager CA/server certs, and SSSD Secret |
-| `docs/usage/oke-gb300-ha-openldap.values.yaml` | HA OpenLDAP Helm values for one writable primary and two read replicas |
-| `docs/usage/oke-gb300-ha-openldap-tls-config.ldif` | OpenLDAP `cn=config` TLS fix used by this chart |
-| `docs/usage/oke-gb300-ha-openldap-primary-syncprov.ldif` | Primary `mdb` `syncprov` overlay required for read-replica replication |
-| `docs/usage/oke-gb300-slurm-home-pvc.yaml` | FSS-backed `/home` PVC bound to `fss-pv` |
-| `docs/usage/oke-gb300-mariadb.yaml` | MariaDB CR used by SlurmDBD accounting |
-| `docs/usage/oke-gb300-hostnetwork-ha-openldap-slurm.values.yaml` | Full GB300 hostNetwork Slurm values with HA LDAP/SSSD/FSS/accounting |
-| `docs/usage/oke-gb300-hostnetwork-autodetect-nvml.values.yaml` | Minimal GB300 hostNetwork `AutoDetect=nvml` Slurm validation values |
-| `docs/usage/oke-gb300-imex-dra-computedomain.yaml` | NVIDIA DRA `ComputeDomain` used to create the shared IMEX channel |
-| `docs/usage/oke-gb300-imex-dra-overlay.values.yaml` | Helm overlay that enables `switch/nvidia_imex` and attaches the IMEX DRA claim to GB300 workers |
+| `docs/usage/scripts/oke-gb300-ha-openldap-deploy.sh` | End-to-end GB300 deploy script for HA OpenLDAP, FSS, MariaDB, Slurm, Alice bootstrap, and validation |
+| `docs/usage/manifests/oke-gb300-ha-openldap-prereqs.yaml` | Namespaces, cert-manager CA/server certs, and SSSD Secret |
+| `docs/usage/manifests/oke-gb300-ha-openldap.values.yaml` | HA OpenLDAP Helm values for one writable primary and two read replicas |
+| `docs/usage/ldif/oke-gb300-ha-openldap-tls-config.ldif` | OpenLDAP `cn=config` TLS fix used by this chart |
+| `docs/usage/ldif/oke-gb300-ha-openldap-primary-syncprov.ldif` | Primary `mdb` `syncprov` overlay required for read-replica replication |
+| `docs/usage/manifests/oke-gb300-slurm-home-pvc.yaml` | FSS-backed `/home` PVC bound to `fss-pv` |
+| `docs/usage/manifests/oke-gb300-mariadb.yaml` | MariaDB CR used by SlurmDBD accounting |
+| `docs/usage/manifests/oke-gb300-hostnetwork-ha-openldap-slurm.values.yaml` | Full GB300 hostNetwork Slurm values with HA LDAP/SSSD/FSS/accounting |
+| `docs/usage/manifests/oke-gb300-hostnetwork-autodetect-nvml.values.yaml` | Minimal GB300 hostNetwork `AutoDetect=nvml` Slurm validation values |
+| `docs/usage/manifests/oke-gb300-imex-dra-computedomain.yaml` | NVIDIA DRA `ComputeDomain` used to create the shared IMEX channel |
+| `docs/usage/manifests/oke-gb300-imex-dra-overlay.values.yaml` | Helm overlay that enables `switch/nvidia_imex` and attaches the IMEX DRA claim to GB300 workers |
 | `docs/usage/oke-gb300-alice-nccl-demo.md` | End-to-end demo that creates LDAP user `alice`, validates SSH/FSS/accounting, and runs an NCCL Slurm job |
-| `docs/usage/oke-gb300-topology-block-test.values.yaml` | Manual split-block topology overlay used to validate Slurm `BlockAsNodeRank` behavior |
+| `docs/usage/manifests/oke-gb300-topology-block-test.values.yaml` | Manual split-block topology overlay used to validate Slurm `BlockAsNodeRank` behavior |
 | `docs/usage/oke-gb300-topology-block-test-log.md` | Manual split-block topology test log and NCCL validation notes |
-| `docs/usage/oke-gb300-oci-label-topology-test.values.yaml` | OCI RDMA label-derived topology overlay using `oci.oraclecloud.com/rdma.local_block_id` |
+| `docs/usage/manifests/oke-gb300-oci-label-topology-test.values.yaml` | OCI RDMA label-derived topology overlay using `oci.oraclecloud.com/rdma.local_block_id` |
 | `docs/usage/oke-gb300-oci-label-topology-test-log.md` | OCI label topology migration/recovery notes and smoke test output |
 | `docs/usage/oke-gb300-topograph-topology.md` | Optional Topograph integration notes for Slinky topology generation from DRA or OCI providers |
-| `docs/usage/imex-per-job-channel-check.sbatch` | Lightweight Slurm probe for checking IMEX channel assignment across overlapping jobs |
-| `docs/usage/slinky-container-images.md` | Container image inventory, including the combined NVML+NCCL worker image |
+| `docs/usage/jobs/imex-per-job-channel-check.sbatch` | Lightweight Slurm probe for checking IMEX channel assignment across overlapping jobs |
+| `docs/usage/oke-slinky-container-images.md` | Container image inventory, including the combined NVML+NCCL worker image |
 
 Deployment order for the tested GB300 path:
 
@@ -483,16 +483,16 @@ Deployment order for the tested GB300 path:
 
 ```bash
 scp -o ProxyJump=ubuntu@151.106.182.43 \
-  docs/usage/oke-gb300-ha-openldap-prereqs.yaml \
-  docs/usage/oke-gb300-ha-openldap.values.yaml \
-  docs/usage/oke-gb300-ha-openldap-tls-config.ldif \
-  docs/usage/oke-gb300-ha-openldap-primary-syncprov.ldif \
-  docs/usage/oke-gb300-slurm-home-pvc.yaml \
-  docs/usage/oke-gb300-mariadb.yaml \
-  docs/usage/oke-gb300-hostnetwork-ha-openldap-slurm.values.yaml \
-  docs/usage/oke-gb300-imex-dra-computedomain.yaml \
-  docs/usage/oke-gb300-imex-dra-overlay.values.yaml \
-  docs/usage/oke-gb300-ha-openldap-deploy.sh \
+  docs/usage/manifests/oke-gb300-ha-openldap-prereqs.yaml \
+  docs/usage/manifests/oke-gb300-ha-openldap.values.yaml \
+  docs/usage/ldif/oke-gb300-ha-openldap-tls-config.ldif \
+  docs/usage/ldif/oke-gb300-ha-openldap-primary-syncprov.ldif \
+  docs/usage/manifests/oke-gb300-slurm-home-pvc.yaml \
+  docs/usage/manifests/oke-gb300-mariadb.yaml \
+  docs/usage/manifests/oke-gb300-hostnetwork-ha-openldap-slurm.values.yaml \
+  docs/usage/manifests/oke-gb300-imex-dra-computedomain.yaml \
+  docs/usage/manifests/oke-gb300-imex-dra-overlay.values.yaml \
+  docs/usage/scripts/oke-gb300-ha-openldap-deploy.sh \
   ubuntu@10.140.0.20:/home/ubuntu/
 ```
 

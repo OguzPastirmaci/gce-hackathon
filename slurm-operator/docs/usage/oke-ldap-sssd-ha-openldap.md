@@ -3,7 +3,7 @@
 Use this design when LDAP must run inside Kubernetes. This is the production
 direction for an in-cluster LDAP service.
 
-Keep the [LDAP/SSSD Disposable Test Runbook](ldap-sssd-disposable-test.md)
+Keep the [LDAP/SSSD Disposable Test Runbook](oke-ldap-sssd-disposable-test.md)
 separate. It validates the Slurm and SSSD path, but it is not an HA identity
 service.
 
@@ -183,7 +183,7 @@ database has the `syncprov` overlay, not only the config database. The replicas
 may bind and search the primary successfully but remain empty if
 `olcOverlay=syncprov,olcDatabase={2}mdb,cn=config` is missing on the primary.
 The GB200 test manifest includes
-`oke-gb200-ha-openldap-primary-syncprov.ldif` for this check/fix.
+`ldif/oke-gb200-ha-openldap-primary-syncprov.ldif` for this check/fix.
 
 ## SSSD Configuration
 

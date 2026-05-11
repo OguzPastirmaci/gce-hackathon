@@ -173,7 +173,7 @@ arm64 manifest: sha256:c0cca5082c4905ddf2c0b23c9ecb01a2048aafab43810e409646f5ed0
 Created:
 
 ```text
-docs/usage/oke-gb200-hostnetwork-autodetect-nvml.values.yaml
+docs/usage/manifests/oke-gb200-hostnetwork-autodetect-nvml.values.yaml
 ```
 
 Important settings:
@@ -284,7 +284,7 @@ Copy the values to the operator node:
 
 ```bash
 scp -o BatchMode=yes -J ubuntu@192.9.189.161 \
-  docs/usage/oke-gb200-hostnetwork-autodetect-nvml.values.yaml \
+  docs/usage/manifests/oke-gb200-hostnetwork-autodetect-nvml.values.yaml \
   ubuntu@10.140.0.20:/home/ubuntu/values-gb200-hostnetwork-autodetect-nvml.yaml
 ```
 

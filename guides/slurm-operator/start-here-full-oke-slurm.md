@@ -71,9 +71,9 @@ The most important files are:
 | File | Purpose |
 | --- | --- |
 | `slurm-operator/docs/usage/oke-slurm-shape-runbooks.md` | Detailed shape-specific runbooks and test status |
-| `slurm-operator/docs/usage/ldap-sssd-ha-openldap.md` | HA OpenLDAP design notes |
-| `slurm-operator/docs/usage/user-identity-home-and-accounting.md` | Identity, FSS, and accounting design details |
-| `slurm-operator/docs/usage/slinky-container-images.md` | Container image inventory |
+| `slurm-operator/docs/usage/oke-ldap-sssd-ha-openldap.md` | HA OpenLDAP design notes |
+| `slurm-operator/docs/usage/oke-user-identity-home-and-accounting.md` | Identity, FSS, and accounting design details |
+| `slurm-operator/docs/usage/oke-slinky-container-images.md` | Container image inventory |
 | `guides/slurm-operator/multi-user-oke/admin-workflows.md` | Operator workflows for onboarding and offboarding users |
 | `guides/slurm-operator/multi-user-oke/product-requirements.md` | PRD and architecture diagram |
 
@@ -81,17 +81,17 @@ Shape-specific deployment files:
 
 | Shape | Required files |
 | --- | --- |
-| `BM.GPU4.8` | `slurm-operator/docs/usage/oke-bm-gpu4-8-fss-sssd-ha-openldap-controller-sssd-autodetect-nvml-numa-topology.overlay.yaml` |
-| `BM.GPU.GB200.4` | `slurm-operator/docs/usage/oke-gb200-ha-openldap-prereqs.yaml`, `oke-gb200-ha-openldap.values.yaml`, `oke-gb200-ha-openldap-tls-config.ldif`, `oke-gb200-ha-openldap-primary-syncprov.ldif`, `oke-gb200-slurm-home-pvc.yaml`, `oke-gb200-mariadb.yaml`, `oke-gb200-hostnetwork-ha-openldap-slurm.values.yaml` |
-| `BM.GPU.GB300.4` | `slurm-operator/docs/usage/oke-gb300-ha-openldap-prereqs.yaml`, `oke-gb300-ha-openldap.values.yaml`, `oke-gb300-ha-openldap-tls-config.ldif`, `oke-gb300-ha-openldap-primary-syncprov.ldif`, `oke-gb300-slurm-home-pvc.yaml`, `oke-gb300-mariadb.yaml`, `oke-gb300-hostnetwork-ha-openldap-slurm.values.yaml`, `oke-gb300-ha-openldap-deploy.sh` |
-| `BM.GPU.MI300X.8` | `slurm-operator/docs/usage/oke-amd-mi300x-ha-openldap-prereqs.yaml`, `oke-amd-mi300x-ha-openldap.values.yaml`, `oke-amd-mi300x-ha-openldap-tls-config.ldif`, `oke-amd-mi300x-ha-openldap-primary-syncprov.ldif`, `oke-amd-mi300x-slurm-home-pvc.yaml`, `oke-amd-mi300x-mariadb.yaml`, `oke-amd-mi300x-hostnetwork-ha-openldap-slurm.values.yaml`, `oke-amd-mi300x-ha-openldap-deploy.sh`, `oke-amd-mi300x-slurm-rccl.sbatch` |
+| `BM.GPU4.8` | `slurm-operator/docs/usage/manifests/oke-bm-gpu4-8-fss-sssd-ha-openldap-controller-sssd-autodetect-nvml-numa-topology.overlay.yaml` |
+| `BM.GPU.GB200.4` | `slurm-operator/docs/usage/manifests/oke-gb200-ha-openldap-prereqs.yaml`, `manifests/oke-gb200-ha-openldap.values.yaml`, `ldif/oke-gb200-ha-openldap-tls-config.ldif`, `ldif/oke-gb200-ha-openldap-primary-syncprov.ldif`, `manifests/oke-gb200-slurm-home-pvc.yaml`, `manifests/oke-gb200-mariadb.yaml`, `manifests/oke-gb200-hostnetwork-ha-openldap-slurm.values.yaml` |
+| `BM.GPU.GB300.4` | `slurm-operator/docs/usage/manifests/oke-gb300-ha-openldap-prereqs.yaml`, `manifests/oke-gb300-ha-openldap.values.yaml`, `ldif/oke-gb300-ha-openldap-tls-config.ldif`, `ldif/oke-gb300-ha-openldap-primary-syncprov.ldif`, `manifests/oke-gb300-slurm-home-pvc.yaml`, `manifests/oke-gb300-mariadb.yaml`, `manifests/oke-gb300-hostnetwork-ha-openldap-slurm.values.yaml`, `scripts/oke-gb300-ha-openldap-deploy.sh` |
+| `BM.GPU.MI300X.8` | `slurm-operator/docs/usage/manifests/oke-amd-mi300x-ha-openldap-prereqs.yaml`, `manifests/oke-amd-mi300x-ha-openldap.values.yaml`, `ldif/oke-amd-mi300x-ha-openldap-tls-config.ldif`, `ldif/oke-amd-mi300x-ha-openldap-primary-syncprov.ldif`, `manifests/oke-amd-mi300x-slurm-home-pvc.yaml`, `manifests/oke-amd-mi300x-mariadb.yaml`, `manifests/oke-amd-mi300x-hostnetwork-ha-openldap-slurm.values.yaml`, `scripts/oke-amd-mi300x-ha-openldap-deploy.sh`, `jobs/oke-amd-mi300x-slurm-rccl.sbatch` |
 
 Optional GB300 files:
 
 | File | Purpose |
 | --- | --- |
-| `slurm-operator/docs/usage/oke-gb300-imex-dra-computedomain.yaml` | NVIDIA DRA `ComputeDomain` for the IMEX channel |
-| `slurm-operator/docs/usage/oke-gb300-imex-dra-overlay.values.yaml` | Slurm overlay for `switch/nvidia_imex` and the DRA claim |
+| `slurm-operator/docs/usage/manifests/oke-gb300-imex-dra-computedomain.yaml` | NVIDIA DRA `ComputeDomain` for the IMEX channel |
+| `slurm-operator/docs/usage/manifests/oke-gb300-imex-dra-overlay.values.yaml` | Slurm overlay for `switch/nvidia_imex` and the DRA claim |
 | `slurm-operator/docs/usage/oke-gb300-alice-nccl-demo.md` | End-to-end user demo with `alice` and NCCL tests |
 | `slurm-operator/docs/usage/oke-gb300-topograph-topology.md` | Optional Topograph topology notes |
 
@@ -151,16 +151,16 @@ For `BM.GPU.GB300.4`:
 
 ```bash
 scp -o ProxyJump=ubuntu@BASTION \
-  slurm-operator/docs/usage/oke-gb300-ha-openldap-prereqs.yaml \
-  slurm-operator/docs/usage/oke-gb300-ha-openldap.values.yaml \
-  slurm-operator/docs/usage/oke-gb300-ha-openldap-tls-config.ldif \
-  slurm-operator/docs/usage/oke-gb300-ha-openldap-primary-syncprov.ldif \
-  slurm-operator/docs/usage/oke-gb300-slurm-home-pvc.yaml \
-  slurm-operator/docs/usage/oke-gb300-mariadb.yaml \
-  slurm-operator/docs/usage/oke-gb300-hostnetwork-ha-openldap-slurm.values.yaml \
-  slurm-operator/docs/usage/oke-gb300-imex-dra-computedomain.yaml \
-  slurm-operator/docs/usage/oke-gb300-imex-dra-overlay.values.yaml \
-  slurm-operator/docs/usage/oke-gb300-ha-openldap-deploy.sh \
+  slurm-operator/docs/usage/manifests/oke-gb300-ha-openldap-prereqs.yaml \
+  slurm-operator/docs/usage/manifests/oke-gb300-ha-openldap.values.yaml \
+  slurm-operator/docs/usage/ldif/oke-gb300-ha-openldap-tls-config.ldif \
+  slurm-operator/docs/usage/ldif/oke-gb300-ha-openldap-primary-syncprov.ldif \
+  slurm-operator/docs/usage/manifests/oke-gb300-slurm-home-pvc.yaml \
+  slurm-operator/docs/usage/manifests/oke-gb300-mariadb.yaml \
+  slurm-operator/docs/usage/manifests/oke-gb300-hostnetwork-ha-openldap-slurm.values.yaml \
+  slurm-operator/docs/usage/manifests/oke-gb300-imex-dra-computedomain.yaml \
+  slurm-operator/docs/usage/manifests/oke-gb300-imex-dra-overlay.values.yaml \
+  slurm-operator/docs/usage/scripts/oke-gb300-ha-openldap-deploy.sh \
   ubuntu@OPERATOR_PRIVATE_IP:/home/ubuntu/
 ```
 
@@ -168,15 +168,15 @@ For `BM.GPU.MI300X.8`:
 
 ```bash
 scp -o ProxyJump=ubuntu@BASTION \
-  slurm-operator/docs/usage/oke-amd-mi300x-ha-openldap-prereqs.yaml \
-  slurm-operator/docs/usage/oke-amd-mi300x-ha-openldap.values.yaml \
-  slurm-operator/docs/usage/oke-amd-mi300x-ha-openldap-tls-config.ldif \
-  slurm-operator/docs/usage/oke-amd-mi300x-ha-openldap-primary-syncprov.ldif \
-  slurm-operator/docs/usage/oke-amd-mi300x-slurm-home-pvc.yaml \
-  slurm-operator/docs/usage/oke-amd-mi300x-mariadb.yaml \
-  slurm-operator/docs/usage/oke-amd-mi300x-hostnetwork-ha-openldap-slurm.values.yaml \
-  slurm-operator/docs/usage/oke-amd-mi300x-ha-openldap-deploy.sh \
-  slurm-operator/docs/usage/oke-amd-mi300x-slurm-rccl.sbatch \
+  slurm-operator/docs/usage/manifests/oke-amd-mi300x-ha-openldap-prereqs.yaml \
+  slurm-operator/docs/usage/manifests/oke-amd-mi300x-ha-openldap.values.yaml \
+  slurm-operator/docs/usage/ldif/oke-amd-mi300x-ha-openldap-tls-config.ldif \
+  slurm-operator/docs/usage/ldif/oke-amd-mi300x-ha-openldap-primary-syncprov.ldif \
+  slurm-operator/docs/usage/manifests/oke-amd-mi300x-slurm-home-pvc.yaml \
+  slurm-operator/docs/usage/manifests/oke-amd-mi300x-mariadb.yaml \
+  slurm-operator/docs/usage/manifests/oke-amd-mi300x-hostnetwork-ha-openldap-slurm.values.yaml \
+  slurm-operator/docs/usage/scripts/oke-amd-mi300x-ha-openldap-deploy.sh \
+  slurm-operator/docs/usage/jobs/oke-amd-mi300x-slurm-rccl.sbatch \
   ubuntu@OPERATOR_PRIVATE_IP:/home/ubuntu/
 ```
 
@@ -184,13 +184,13 @@ For `BM.GPU.GB200.4`:
 
 ```bash
 scp -o ProxyJump=ubuntu@BASTION \
-  slurm-operator/docs/usage/oke-gb200-ha-openldap-prereqs.yaml \
-  slurm-operator/docs/usage/oke-gb200-ha-openldap.values.yaml \
-  slurm-operator/docs/usage/oke-gb200-ha-openldap-tls-config.ldif \
-  slurm-operator/docs/usage/oke-gb200-ha-openldap-primary-syncprov.ldif \
-  slurm-operator/docs/usage/oke-gb200-slurm-home-pvc.yaml \
-  slurm-operator/docs/usage/oke-gb200-mariadb.yaml \
-  slurm-operator/docs/usage/oke-gb200-hostnetwork-ha-openldap-slurm.values.yaml \
+  slurm-operator/docs/usage/manifests/oke-gb200-ha-openldap-prereqs.yaml \
+  slurm-operator/docs/usage/manifests/oke-gb200-ha-openldap.values.yaml \
+  slurm-operator/docs/usage/ldif/oke-gb200-ha-openldap-tls-config.ldif \
+  slurm-operator/docs/usage/ldif/oke-gb200-ha-openldap-primary-syncprov.ldif \
+  slurm-operator/docs/usage/manifests/oke-gb200-slurm-home-pvc.yaml \
+  slurm-operator/docs/usage/manifests/oke-gb200-mariadb.yaml \
+  slurm-operator/docs/usage/manifests/oke-gb200-hostnetwork-ha-openldap-slurm.values.yaml \
   ubuntu@OPERATOR_PRIVATE_IP:/home/ubuntu/
 ```
 
@@ -198,7 +198,7 @@ For `BM.GPU4.8`:
 
 ```bash
 scp -o ProxyJump=ubuntu@BASTION \
-  slurm-operator/docs/usage/oke-bm-gpu4-8-fss-sssd-ha-openldap-controller-sssd-autodetect-nvml-numa-topology.overlay.yaml \
+  slurm-operator/docs/usage/manifests/oke-bm-gpu4-8-fss-sssd-ha-openldap-controller-sssd-autodetect-nvml-numa-topology.overlay.yaml \
   ubuntu@OPERATOR_PRIVATE_IP:/home/ubuntu/values-bm-gpu4-8-full.yaml
 ```
 
@@ -758,7 +758,7 @@ For `BM.GPU.MI300X.8`, use the checked-in RCCL test log and Slurm batch script:
 
 ```text
 slurm-operator/docs/usage/oke-amd-mi300x-rccl-test-log.md
-slurm-operator/docs/usage/oke-amd-mi300x-slurm-rccl.sbatch
+slurm-operator/docs/usage/jobs/oke-amd-mi300x-slurm-rccl.sbatch
 ```
 
 The validated MI300X run completed across 2 nodes and 16 GPUs with `0 OK`.
@@ -803,7 +803,7 @@ Important behavior:
 For per-job channel validation, use:
 
 ```text
-slurm-operator/docs/usage/imex-per-job-channel-check.sbatch
+slurm-operator/docs/usage/jobs/imex-per-job-channel-check.sbatch
 ```
 
 Overlapping jobs on one worker must request bounded memory, for example

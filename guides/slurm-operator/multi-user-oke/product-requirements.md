@@ -590,7 +590,7 @@ Current image inventory:
 
 Reference:
 
-- `slurm-operator/docs/usage/slinky-container-images.md`
+- `slurm-operator/docs/usage/oke-slinky-container-images.md`
 
 ## Controller SSSD/NSS Requirement
 
@@ -882,14 +882,14 @@ Deliver:
 Primary runbook:
 
 ```text
-/Users/opastirm/Documents/Repos/slurm-operator/docs/usage/user-identity-home-and-accounting.md
+/Users/opastirm/Documents/Repos/slurm-operator/docs/usage/oke-user-identity-home-and-accounting.md
 ```
 
 Related LDAP option docs:
 
 ```text
-/Users/opastirm/Documents/Repos/slurm-operator/docs/usage/ldap-sssd-disposable-test.md
-/Users/opastirm/Documents/Repos/slurm-operator/docs/usage/ldap-sssd-ha-openldap.md
+/Users/opastirm/Documents/Repos/slurm-operator/docs/usage/oke-ldap-sssd-disposable-test.md
+/Users/opastirm/Documents/Repos/slurm-operator/docs/usage/oke-ldap-sssd-ha-openldap.md
 /Users/opastirm/Documents/Repos/slurm-operator/docs/usage/oke-slurm-shape-runbooks.md
 /Users/opastirm/Documents/Repos/slurm-operator/docs/usage/oke-gb200-final-cluster-capture.md
 /Users/opastirm/Documents/Repos/slurm-operator/docs/usage/oke-gb300-alice-nccl-demo.md
