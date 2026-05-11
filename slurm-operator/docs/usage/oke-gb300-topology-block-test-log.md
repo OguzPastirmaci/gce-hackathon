@@ -15,7 +15,7 @@ Purpose:
 - Test Slurm `topology/block` behavior through `topology.yaml`.
 - Test `TopologyParam=BlockAsNodeRank`.
 - Keep `SwitchType=switch/nvidia_imex` and the working NCCL/IMEX setup intact.
-- Validate with a rank-order probe and then the Devin NCCL demo.
+- Validate with a rank-order probe and then the Alice NCCL demo.
 
 Starting Slurm topology config:
 
@@ -148,12 +148,12 @@ Slurm nodes showed the expected topology:
 
 ## Rank-Order Probe
 
-Submitted a 4-node, one-rank-per-node probe as `devin`.
+Submitted a 4-node, one-rank-per-node probe as `alice`.
 
 Job:
 
 ```text
-24|topology-rank-probe|devin|project-devin|COMPLETED|0:0|billing=4,cpu=4,gres/gpu=4,mem=16G,node=4|10.140.88.115,10.140.71.103,10.140.79.152,10.140.93.120
+24|topology-rank-probe|alice|project-a|COMPLETED|0:0|billing=4,cpu=4,gres/gpu=4,mem=16G,node=4|10.140.88.115,10.140.71.103,10.140.79.152,10.140.93.120
 ```
 
 Output:
@@ -180,20 +180,20 @@ Interpretation:
 
 ## Two-Job Packing Probe
 
-Submitted two simultaneous 2-node exclusive jobs as `devin`.
+Submitted two simultaneous 2-node exclusive jobs as `alice`.
 
 Running placement:
 
 ```text
-26  gb300  topology-pack-b  devin  R  2  10.140.79.152,10.140.93.120
-25  gb300  topology-pack-a  devin  R  2  10.140.71.103,10.140.88.115
+26  gb300  topology-pack-b  alice  R  2  10.140.79.152,10.140.93.120
+25  gb300  topology-pack-a  alice  R  2  10.140.71.103,10.140.88.115
 ```
 
 Accounting:
 
 ```text
-25|topology-pack-a|devin|project-devin|COMPLETED|0:0|billing=288,cpu=288,gres/gpu=8,mem=32G,node=2|10.140.88.115,10.140.71.103
-26|topology-pack-b|devin|project-devin|COMPLETED|0:0|billing=288,cpu=288,gres/gpu=8,mem=32G,node=2|10.140.79.152,10.140.93.120
+25|topology-pack-a|alice|project-a|COMPLETED|0:0|billing=288,cpu=288,gres/gpu=8,mem=32G,node=2|10.140.88.115,10.140.71.103
+26|topology-pack-b|alice|project-a|COMPLETED|0:0|billing=288,cpu=288,gres/gpu=8,mem=32G,node=2|10.140.79.152,10.140.93.120
 ```
 
 Output:
@@ -222,20 +222,20 @@ Created a reusable sbatch file:
 docs/usage/nccl-imex-demo-gb300.sbatch
 ```
 
-Copied it to `/home/devin/nccl-imex-demo-gb300.sbatch` and submitted it as
-`devin`.
+Copied it to `/home/alice/nccl-imex-demo-gb300.sbatch` and submitted it as
+`alice`.
 
 Accounting:
 
 ```text
-27|devin-nccl-imex|devin|project-devin|COMPLETED|0:0|billing=256,cpu=256,gres/gpu=16,mem=256G,node=4|10.140.88.115,10.140.71.103,10.140.79.152,10.140.93.120
-27.1|with-nccl-tests-env||project-devin|COMPLETED|0:0|cpu=256,gres/gpu=16,mem=256G,node=4|10.140.88.115,10.140.71.103,10.140.79.152,10.140.93.120
+27|alice-nccl-imex|alice|project-a|COMPLETED|0:0|billing=256,cpu=256,gres/gpu=16,mem=256G,node=4|10.140.88.115,10.140.71.103,10.140.79.152,10.140.93.120
+27.1|with-nccl-tests-env||project-a|COMPLETED|0:0|cpu=256,gres/gpu=16,mem=256G,node=4|10.140.88.115,10.140.71.103,10.140.79.152,10.140.93.120
 ```
 
 Slurm allocation:
 
 ```text
-job=27 user=devin nodes=10.140.88.115,10.140.71.103,10.140.79.152,10.140.93.120
+job=27 user=alice nodes=10.140.88.115,10.140.71.103,10.140.79.152,10.140.93.120
 10.140.88.115
 10.140.71.103
 10.140.79.152
@@ -290,7 +290,7 @@ NCCL `all_reduce_perf -b 8M -e 8G -f 2 -g 1 -n 30` result:
 Topology dump:
 
 ```text
-/home/devin/nccl-topo-27-2026-05-06-194050.txt
+/home/alice/nccl-topo-27-2026-05-06-194050.txt
 ```
 
 ## Result

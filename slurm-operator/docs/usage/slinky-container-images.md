@@ -331,14 +331,14 @@ Runtime validation on the GB300 cluster:
 
 ```text
 Normal Slurm job:
-devin
+alice
 instance20260506003204
-/home/devin
+/home/alice
 
 Pyxis job, no Enroot environment overrides:
 pyxis: importing docker image: ubuntu:24.04
 pyxis: imported docker image: ubuntu:24.04
-devin
+alice
 instance20260506003204
 PRETTY_NAME="Ubuntu 24.04.4 LTS"
 ```

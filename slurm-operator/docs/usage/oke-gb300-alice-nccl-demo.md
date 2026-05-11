@@ -1,17 +1,17 @@
-# GB300 Devin NCCL Demo
+# GB300 Alice NCCL Demo
 
 This demo validates the user-facing Slurm-on-OKE experience with a new LDAP
-user named `devin`.
+user named `alice`.
 
 The demo proves:
 
-- `devin` can SSH into the Slinky login service with an LDAP-backed SSH key;
-- `devin` resolves through SSSD in login, controller, and worker pods;
-- `/home/devin` is mounted from FSS through `slurm-home` and `fss-pv`;
-- Slurm accounting records `devin` and the project account;
+- `alice` can SSH into the Slinky login service with an LDAP-backed SSH key;
+- `alice` resolves through SSSD in login, controller, and worker pods;
+- `/home/alice` is mounted from FSS through `slurm-home` and `fss-pv`;
+- Slurm accounting records `alice` and the project account;
 - `AutoDetect=nvml` exposes the GB300 GPUs to Slurm;
 - `switch/nvidia_imex` and the DRA IMEX channel are active;
-- `devin` can run an NCCL `all_reduce_perf` job through Slurm.
+- `alice` can run an NCCL `all_reduce_perf` job through Slurm.
 
 The example workload is the NCCL test job. It uses the current GB300 worker
 image:
@@ -85,7 +85,7 @@ SwitchType              = switch/nvidia_imex
 TopologyPlugin          = topology/flat
 ```
 
-## 2. Create the Devin SSH Key
+## 2. Create the Alice SSH Key
 
 Run on the operator node:
 
@@ -94,27 +94,27 @@ mkdir -p /home/ubuntu/.ssh
 chmod 700 /home/ubuntu/.ssh
 
 ssh-keygen -t ed25519 -N "" \
-  -f /home/ubuntu/.ssh/devin_slurm_demo \
-  -C devin-slurm-demo
+  -f /home/ubuntu/.ssh/alice_slurm_demo \
+  -C alice-slurm-demo
 
-chmod 600 /home/ubuntu/.ssh/devin_slurm_demo
+chmod 600 /home/ubuntu/.ssh/alice_slurm_demo
 ```
 
 If the key already exists and you want to reuse it, skip `ssh-keygen`.
 
-## 3. Add Devin to LDAP
+## 3. Add Alice to LDAP
 
 Run this whole block on the operator node. It is idempotent for the demo user:
-it creates missing LDAP entries and updates Devin's SSH key if the user already
+it creates missing LDAP entries and updates Alice's SSH key if the user already
 exists.
 
 ```bash
-export DEMO_USER=devin
-export DEMO_UID=10002
-export DEMO_GID=10002
-export DEMO_ACCOUNT=project-devin
-export DEMO_ACCOUNT_GID=11002
-export DEMO_PUBKEY="$(cat /home/ubuntu/.ssh/devin_slurm_demo.pub)"
+export DEMO_USER=alice
+export DEMO_UID=10001
+export DEMO_GID=10001
+export DEMO_ACCOUNT=project-a
+export DEMO_ACCOUNT_GID=11001
+export DEMO_PUBKEY="$(cat /home/ubuntu/.ssh/alice_slurm_demo.pub)"
 
 ldapsearch_primary() {
   kubectl -n identity exec openldap-0 -- \
@@ -205,14 +205,14 @@ else
     "objectClass: inetOrgPerson" \
     "objectClass: posixAccount" \
     "objectClass: shadowAccount" \
-    "cn: Devin Slurm" \
+    "cn: Alice Slurm" \
     "sn: Slurm" \
     "uid: ${DEMO_USER}" \
     "uidNumber: ${DEMO_UID}" \
     "gidNumber: ${DEMO_GID}" \
     "homeDirectory: /home/${DEMO_USER}" \
     "loginShell: /bin/bash" \
-    "userPassword: devinpw" \
+    "userPassword: alicepw" \
     "description: ${DEMO_PUBKEY}" | ldapadd_primary
 fi
 
@@ -226,20 +226,20 @@ for pod in openldap-0 openldap-readonly-0 openldap-readonly-1; do
 done
 ```
 
-Expected: all three LDAP pods return `uid=devin`, `uidNumber=10002`,
-`gidNumber=10002`, and `homeDirectory=/home/devin`.
+Expected: all three LDAP pods return `uid=alice`, `uidNumber=10001`,
+`gidNumber=10001`, and `homeDirectory=/home/alice`.
 
-## 4. Create Devin's FSS Home Directory
+## 4. Create Alice's FSS Home Directory
 
 Run on the operator node:
 
 ```bash
 kubectl -n slurm exec deploy/slurm-login-slinky -c login -- sh -lc '
-  mkdir -p /home/devin
-  chown 10002:10002 /home/devin
-  chmod 700 /home/devin
+  mkdir -p /home/alice
+  chown 10001:10001 /home/alice
+  chmod 700 /home/alice
   chmod 711 /home
-  ls -ld /home /home/devin
+  ls -ld /home /home/alice
 '
 ```
 
@@ -247,55 +247,55 @@ Expected:
 
 ```text
 drwx--x--x ... /home
-drwx------ ... /home/devin
+drwx------ ... /home/alice
 ```
 
-## 5. Validate Devin Through SSSD
+## 5. Validate Alice Through SSSD
 
 Run on the operator node:
 
 ```bash
-kubectl -n slurm exec slurm-controller-0 -c slurmctld -- getent passwd devin
-kubectl -n slurm exec slurm-controller-0 -c slurmctld -- id devin
-kubectl -n slurm exec deploy/slurm-login-slinky -c login -- getent passwd devin
-kubectl -n slurm exec deploy/slurm-login-slinky -c login -- id devin
-kubectl -n slurm exec deploy/slurm-login-slinky -c login -- sss_ssh_authorizedkeys devin
-kubectl -n slurm exec slurm-worker-gb300-0 -c slurmd -- getent passwd devin
-kubectl -n slurm exec slurm-worker-gb300-0 -c slurmd -- id devin
+kubectl -n slurm exec slurm-controller-0 -c slurmctld -- getent passwd alice
+kubectl -n slurm exec slurm-controller-0 -c slurmctld -- id alice
+kubectl -n slurm exec deploy/slurm-login-slinky -c login -- getent passwd alice
+kubectl -n slurm exec deploy/slurm-login-slinky -c login -- id alice
+kubectl -n slurm exec deploy/slurm-login-slinky -c login -- sss_ssh_authorizedkeys alice
+kubectl -n slurm exec slurm-worker-gb300-0 -c slurmd -- getent passwd alice
+kubectl -n slurm exec slurm-worker-gb300-0 -c slurmd -- id alice
 ```
 
 The current Slinky/login images used in this demo do not include `sss_cache`.
 Do not treat `sss_cache: executable file not found` as a validation failure.
 The authoritative check is whether `getent`, `id`, and
-`sss_ssh_authorizedkeys` return Devin from the controller, login, and worker
+`sss_ssh_authorizedkeys` return Alice from the controller, login, and worker
 pods.
 
 Expected identity shape:
 
 ```text
-devin:*:10002:10002:Devin Slurm:/home/devin:/bin/bash
-uid=10002(devin) gid=10002(devin) groups=10002(devin),11002(project-devin)
+alice:*:10001:10001:Alice Slurm:/home/alice:/bin/bash
+uid=10001(alice) gid=10001(alice) groups=10001(alice),11001(project-a)
 ```
 
-## 6. Add Devin to Slurm Accounting
+## 6. Add Alice to Slurm Accounting
 
 Run on the operator node:
 
 ```bash
 kubectl -n slurm exec slurm-controller-0 -c slurmctld -- sh -lc '
-  sacctmgr -i add account project-devin Description="Project Devin" Organization=example || true
-  sacctmgr -i add user name=devin account=project-devin defaultaccount=project-devin || true
-  sacctmgr -nP show assoc user=devin format=User,Account,DefaultQOS,QOS
+  sacctmgr -i add account project-a Description="Project A" Organization=example || true
+  sacctmgr -i add user name=alice account=project-a defaultaccount=project-a || true
+  sacctmgr -nP show assoc user=alice format=User,Account,DefaultQOS,QOS
 '
 ```
 
 Expected:
 
 ```text
-devin|project-devin||normal
+alice|project-a||normal
 ```
 
-## 7. SSH as Devin
+## 7. SSH as Alice
 
 Run on the operator node:
 
@@ -303,44 +303,46 @@ Run on the operator node:
 LOGIN_IP="$(kubectl -n slurm get svc slurm-login-slinky \
   -o jsonpath='{.status.loadBalancer.ingress[0].ip}')"
 
-ssh -i /home/ubuntu/.ssh/devin_slurm_demo \
+ssh -i /home/ubuntu/.ssh/alice_slurm_demo \
   -o BatchMode=yes \
   -o StrictHostKeyChecking=no \
-  devin@"${LOGIN_IP}" \
-  'whoami; id; pwd; ls -ld /home /home/devin; ls /home/alice 2>&1 || true'
+  alice@"${LOGIN_IP}" \
+  'whoami; id; pwd; ls -ld /home /home/alice; ls /home/bob 2>&1 || true'
 ```
 
 Expected:
 
 ```text
-devin
-uid=10002(devin) gid=10002(devin) groups=10002(devin),11002(project-devin)
-/home/devin
+alice
+uid=10001(alice) gid=10001(alice) groups=10001(alice),11001(project-a)
+/home/alice
 drwx--x--x ... /home
-drwx------ ... /home/devin
-ls: cannot open directory '/home/alice': Permission denied
+drwx------ ... /home/alice
 ```
 
-## 8. Create Devin's NCCL Job
+If `/home/bob` exists as a negative-control home, the final `ls` should return
+`Permission denied`. If it does not exist, `No such file or directory` is fine.
 
-SSH as Devin:
+## 8. Create Alice's NCCL Job
+
+SSH as Alice:
 
 ```bash
 LOGIN_IP="${LOGIN_IP:-$(kubectl -n slurm get svc slurm-login-slinky \
   -o jsonpath='{.status.loadBalancer.ingress[0].ip}')}"
 
-ssh -i /home/ubuntu/.ssh/devin_slurm_demo \
+ssh -i /home/ubuntu/.ssh/alice_slurm_demo \
   -o BatchMode=yes \
   -o StrictHostKeyChecking=no \
-  devin@"${LOGIN_IP}"
+  alice@"${LOGIN_IP}"
 ```
 
 Create the job script:
 
 ```bash
-cat > /home/devin/nccl-imex-demo-gb300.sbatch <<'EOF'
+cat > /home/alice/nccl-imex-demo-gb300.sbatch <<'EOF'
 #!/bin/bash
-#SBATCH --job-name=devin-nccl-imex
+#SBATCH --job-name=alice-nccl-imex
 #SBATCH --partition=gb300
 #SBATCH --nodes=4
 #SBATCH --ntasks-per-node=4
@@ -348,8 +350,8 @@ cat > /home/devin/nccl-imex-demo-gb300.sbatch <<'EOF'
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=64G
 #SBATCH --time=00:10:00
-#SBATCH --output=/home/devin/devin-nccl-imex-%j.out
-#SBATCH --error=/home/devin/devin-nccl-imex-%j.err
+#SBATCH --output=/home/alice/alice-nccl-imex-%j.out
+#SBATCH --error=/home/alice/alice-nccl-imex-%j.err
 
 set -euxo pipefail
 
@@ -367,7 +369,7 @@ export HCOLL_ENABLE_MCAST_ALL=0
 export coll_hcoll_enable=0
 
 export NCCL_DEBUG=WARN
-export NCCL_TOPO_DUMP_FILE="/home/devin/nccl-topo-${SLURM_JOB_ID}-$(date +%F-%H%M%S).txt"
+export NCCL_TOPO_DUMP_FILE="/home/alice/nccl-topo-${SLURM_JOB_ID}-$(date +%F-%H%M%S).txt"
 export NCCL_SOCKET_IFNAME=eth0
 export NCCL_IB_HCA=rdma_vf_rail0,rdma_vf_rail1,rdma_vf_rail2,rdma_vf_rail3
 export NCCL_IB_GID_INDEX=3
@@ -424,12 +426,12 @@ Why `--mem=64G`: the live cluster uses consumable memory
 that omits `--mem` can reserve full node memory. The demo uses a bounded memory
 request so smaller jobs can share nodes when needed.
 
-## 9. Submit the NCCL Job as Devin
+## 9. Submit the NCCL Job as Alice
 
-Run as Devin on the login pod:
+Run as Alice on the login pod:
 
 ```bash
-JOB="$(sbatch --parsable /home/devin/nccl-imex-demo-gb300.sbatch)"
+JOB="$(sbatch --parsable /home/alice/nccl-imex-demo-gb300.sbatch)"
 echo "JOB=${JOB}"
 
 squeue -j "${JOB}"
@@ -446,16 +448,16 @@ done
 
 ## 10. Show Accounting and NCCL Output
 
-Run as Devin on the login pod:
+Run as Alice on the login pod:
 
 ```bash
 sacct -j "${JOB}" \
   --format=JobID,JobName,User,Account,State,ExitCode,AllocTRES%100,NodeList -P
 
-cat "/home/devin/devin-nccl-imex-${JOB}.out"
+cat "/home/alice/alice-nccl-imex-${JOB}.out"
 
-if [ -s "/home/devin/devin-nccl-imex-${JOB}.err" ]; then
-  cat "/home/devin/devin-nccl-imex-${JOB}.err"
+if [ -s "/home/alice/alice-nccl-imex-${JOB}.err" ]; then
+  cat "/home/alice/alice-nccl-imex-${JOB}.err"
 fi
 ```
 
@@ -463,16 +465,16 @@ Expected accounting shape:
 
 ```text
 JobID|JobName|User|Account|State|ExitCode|AllocTRES|NodeList
-<job>|devin-nccl-imex|devin|project-devin|COMPLETED|0:0|billing=256,cpu=256,gres/gpu=16,mem=...,node=4|...
-<job>.batch|batch||project-devin|COMPLETED|0:0|cpu=...,gres/gpu=...,mem=...,node=1|...
-<job>.extern|extern||project-devin|COMPLETED|0:0|billing=256,cpu=256,gres/gpu=16,mem=...,node=4|...
+<job>|alice-nccl-imex|alice|project-a|COMPLETED|0:0|billing=256,cpu=256,gres/gpu=16,mem=...,node=4|...
+<job>.batch|batch||project-a|COMPLETED|0:0|cpu=...,gres/gpu=...,mem=...,node=1|...
+<job>.extern|extern||project-a|COMPLETED|0:0|billing=256,cpu=256,gres/gpu=16,mem=...,node=4|...
 ```
 
 Expected output shape:
 
 ```text
 == Slurm allocation ==
-job=<job> user=devin nodes=...
+job=<job> user=alice nodes=...
 
 == Rank visibility check ==
 0: rank=0 local=0 host=... cuda=0,1,2,3
@@ -508,14 +510,14 @@ NCCL version 2.29.3+cuda13.1
 Pass criteria:
 
 - job state is `COMPLETED`;
-- `User=devin`;
-- `Account=project-devin`;
+- `User=alice`;
+- `Account=project-a`;
 - `AllocTRES` includes `gres/gpu=16`;
 - each rank sees `visible_gpu_count=4`;
 - each rank sees `imex_channels=1`;
 - NCCL prints `NCCL version 2.29.3+cuda13.1`;
 - NCCL prints `# Out of bounds values : 0 OK`.
-- `/home/devin/nccl-topo-<job>-<timestamp>.txt` is created for topology
+- `/home/alice/nccl-topo-<job>-<timestamp>.txt` is created for topology
   troubleshooting.
 
 ## 11. Optional Per-Job IMEX Channel Check
@@ -532,14 +534,14 @@ scp -o ProxyJump=ubuntu@151.106.182.43 \
   ubuntu@10.140.0.20:/home/ubuntu/imex-per-job-channel-check.sbatch
 ```
 
-Copy the probe to Devin's home:
+Copy the probe to Alice's home:
 
 ```bash
-scp -i /home/ubuntu/.ssh/devin_slurm_demo \
+scp -i /home/ubuntu/.ssh/alice_slurm_demo \
   -o BatchMode=yes \
   -o StrictHostKeyChecking=no \
   /home/ubuntu/imex-per-job-channel-check.sbatch \
-  devin@"${LOGIN_IP}":/home/devin/imex-per-job-channel-check.sbatch
+  alice@"${LOGIN_IP}":/home/alice/imex-per-job-channel-check.sbatch
 ```
 
 Submit two jobs pinned to the same worker with bounded memory:
@@ -548,17 +550,17 @@ Submit two jobs pinned to the same worker with bounded memory:
 NODE="$(kubectl -n slurm exec slurm-controller-0 -c slurmctld -- \
   sinfo -h -N -p gb300 -o '%N' | head -1)"
 
-ssh -i /home/ubuntu/.ssh/devin_slurm_demo \
+ssh -i /home/ubuntu/.ssh/alice_slurm_demo \
   -o BatchMode=yes \
   -o StrictHostKeyChecking=no \
-  devin@"${LOGIN_IP}" \
-  "sbatch --nodelist=${NODE} --mem=16G /home/devin/imex-per-job-channel-check.sbatch"
+  alice@"${LOGIN_IP}" \
+  "sbatch --nodelist=${NODE} --mem=16G /home/alice/imex-per-job-channel-check.sbatch"
 
-ssh -i /home/ubuntu/.ssh/devin_slurm_demo \
+ssh -i /home/ubuntu/.ssh/alice_slurm_demo \
   -o BatchMode=yes \
   -o StrictHostKeyChecking=no \
-  devin@"${LOGIN_IP}" \
-  "sbatch --nodelist=${NODE} --mem=16G /home/devin/imex-per-job-channel-check.sbatch"
+  alice@"${LOGIN_IP}" \
+  "sbatch --nodelist=${NODE} --mem=16G /home/alice/imex-per-job-channel-check.sbatch"
 ```
 
 Expected: both jobs can overlap on the same node and print different channel
@@ -566,14 +568,14 @@ names, for example `channel1` and `channel2`.
 
 ## 12. Cleanup
 
-Keep Devin for repeated demos. If you need to remove only demo job output:
+Keep Alice for repeated demos. If you need to remove only demo job output:
 
 ```bash
-ssh -i /home/ubuntu/.ssh/devin_slurm_demo \
+ssh -i /home/ubuntu/.ssh/alice_slurm_demo \
   -o BatchMode=yes \
   -o StrictHostKeyChecking=no \
-  devin@"${LOGIN_IP}" \
-  'rm -f /home/devin/devin-nccl-imex-*.out /home/devin/devin-nccl-imex-*.err /home/devin/imex-channel-*.out /home/devin/imex-channel-*.err'
+  alice@"${LOGIN_IP}" \
+  'rm -f /home/alice/alice-nccl-imex-*.out /home/alice/alice-nccl-imex-*.err /home/alice/imex-channel-*.out /home/alice/imex-channel-*.err'
 ```
 
 Do not delete the LDAP user, FSS home, or Slurm account unless you want to

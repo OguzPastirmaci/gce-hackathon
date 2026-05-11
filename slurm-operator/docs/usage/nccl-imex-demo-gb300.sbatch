@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=devin-nccl-imex
+#SBATCH --job-name=alice-nccl-imex
 #SBATCH --partition=gb300
 #SBATCH --nodes=4
 #SBATCH --ntasks-per-node=4
@@ -7,8 +7,8 @@
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=64G
 #SBATCH --time=00:10:00
-#SBATCH --output=/home/devin/devin-nccl-imex-%j.out
-#SBATCH --error=/home/devin/devin-nccl-imex-%j.err
+#SBATCH --output=/home/alice/alice-nccl-imex-%j.out
+#SBATCH --error=/home/alice/alice-nccl-imex-%j.err
 
 set -euxo pipefail
 
@@ -26,7 +26,7 @@ export HCOLL_ENABLE_MCAST_ALL=0
 export coll_hcoll_enable=0
 
 export NCCL_DEBUG=WARN
-export NCCL_TOPO_DUMP_FILE="/home/devin/nccl-topo-${SLURM_JOB_ID}-$(date +%F-%H%M%S).txt"
+export NCCL_TOPO_DUMP_FILE="/home/alice/nccl-topo-${SLURM_JOB_ID}-$(date +%F-%H%M%S).txt"
 export NCCL_SOCKET_IFNAME=eth0
 export NCCL_IB_HCA=rdma_vf_rail0,rdma_vf_rail1,rdma_vf_rail2,rdma_vf_rail3
 export NCCL_IB_GID_INDEX=3

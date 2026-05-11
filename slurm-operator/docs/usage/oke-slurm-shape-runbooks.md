@@ -468,7 +468,7 @@ Primary docs and manifests:
 | `docs/usage/oke-gb300-hostnetwork-autodetect-nvml.values.yaml` | Minimal GB300 hostNetwork `AutoDetect=nvml` Slurm validation values |
 | `docs/usage/oke-gb300-imex-dra-computedomain.yaml` | NVIDIA DRA `ComputeDomain` used to create the shared IMEX channel |
 | `docs/usage/oke-gb300-imex-dra-overlay.values.yaml` | Helm overlay that enables `switch/nvidia_imex` and attaches the IMEX DRA claim to GB300 workers |
-| `docs/usage/oke-gb300-devin-nccl-demo.md` | End-to-end demo that creates LDAP user `devin`, validates SSH/FSS/accounting, and runs an NCCL Slurm job |
+| `docs/usage/oke-gb300-alice-nccl-demo.md` | End-to-end demo that creates LDAP user `alice`, validates SSH/FSS/accounting, and runs an NCCL Slurm job |
 | `docs/usage/oke-gb300-topology-block-test.values.yaml` | Manual split-block topology overlay used to validate Slurm `BlockAsNodeRank` behavior |
 | `docs/usage/oke-gb300-topology-block-test-log.md` | Manual split-block topology test log and NCCL validation notes |
 | `docs/usage/oke-gb300-oci-label-topology-test.values.yaml` | OCI RDMA label-derived topology overlay using `oci.oraclecloud.com/rdma.local_block_id` |

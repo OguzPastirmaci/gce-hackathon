@@ -169,27 +169,27 @@ is needed to validate real cross-block rank ordering.
 
 ## Smoke Test
 
-Submitted a small four-node job as `devin` through the login service:
+Submitted a small four-node job as `alice` through the login service:
 
 ```bash
 LOGIN_IP="$(kubectl -n slurm get svc slurm-login-slinky \
   -o jsonpath='{.status.loadBalancer.ingress[0].ip}')"
 
-ssh -i /home/ubuntu/.ssh/devin_slurm_demo \
+ssh -i /home/ubuntu/.ssh/alice_slurm_demo \
   -o BatchMode=yes \
   -o StrictHostKeyChecking=no \
-  devin@"${LOGIN_IP}" \
+  alice@"${LOGIN_IP}" \
   'JOB=$(sbatch --parsable --wait \
       --partition=gb300 \
-      --account=project-devin \
+      --account=project-a \
       --nodes=4 \
       --ntasks-per-node=1 \
       --cpus-per-task=1 \
       --mem=1G \
-      --output=/home/devin/topology-oci-smoke-%j.out \
+      --output=/home/alice/topology-oci-smoke-%j.out \
       --wrap="srun /bin/hostname");
     echo JOB=$JOB;
-    cat /home/devin/topology-oci-smoke-${JOB}.out;
+    cat /home/alice/topology-oci-smoke-${JOB}.out;
     sacct -j $JOB --format=JobID,User,Account,State,ExitCode,NodeList -P'
 ```
 
@@ -202,10 +202,10 @@ instance20260506003155
 instance20260506003159
 instance20260506003207
 JobID|User|Account|State|ExitCode|NodeList
-29|devin|project-devin|COMPLETED|0:0|10.140.88.115,10.140.71.103,10.140.79.152,10.140.93.120
-29.batch||project-devin|COMPLETED|0:0|10.140.88.115
-29.extern||project-devin|COMPLETED|0:0|10.140.88.115,10.140.71.103,10.140.79.152,10.140.93.120
-29.0||project-devin|COMPLETED|0:0|10.140.88.115,10.140.71.103,10.140.79.152,10.140.93.120
+29|alice|project-a|COMPLETED|0:0|10.140.88.115,10.140.71.103,10.140.79.152,10.140.93.120
+29.batch||project-a|COMPLETED|0:0|10.140.88.115
+29.extern||project-a|COMPLETED|0:0|10.140.88.115,10.140.71.103,10.140.79.152,10.140.93.120
+29.0||project-a|COMPLETED|0:0|10.140.88.115,10.140.71.103,10.140.79.152,10.140.93.120
 ```
 
 ## Current State

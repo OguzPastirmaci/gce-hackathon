@@ -92,7 +92,7 @@ Optional GB300 files:
 | --- | --- |
 | `slurm-operator/docs/usage/oke-gb300-imex-dra-computedomain.yaml` | NVIDIA DRA `ComputeDomain` for the IMEX channel |
 | `slurm-operator/docs/usage/oke-gb300-imex-dra-overlay.values.yaml` | Slurm overlay for `switch/nvidia_imex` and the DRA claim |
-| `slurm-operator/docs/usage/oke-gb300-devin-nccl-demo.md` | End-to-end user demo with `devin` and NCCL tests |
+| `slurm-operator/docs/usage/oke-gb300-alice-nccl-demo.md` | End-to-end user demo with `alice` and NCCL tests |
 | `slurm-operator/docs/usage/oke-gb300-topograph-topology.md` | Optional Topograph topology notes |
 
 ## Prerequisites
@@ -543,70 +543,70 @@ and validation flow, then deploys the AMD `hostNetwork` Slurm values with
 
 Use the manual sections above when adapting the stack to GB200 or BM.GPU4.8.
 
-## Step 10: Add a Real User
+## Step 10: Validate the Alice User
 
-The deployment script creates `alice` for validation. For a real user, add the
-LDAP user, primary group, project group, FSS home, and SlurmDBD association.
-The same flow is documented in
-`guides/slurm-operator/multi-user-oke/admin-workflows.md`.
+The deployment script creates `alice` for validation. For a manual deployment,
+create the LDAP user, primary group, project group, FSS home, and SlurmDBD
+association before validating access. The same flow for other users is
+documented in `guides/slurm-operator/multi-user-oke/admin-workflows.md`.
 
-Example for user `devin`:
+Example for user `alice`:
 
 ```bash
-ssh-keygen -t ed25519 -N "" -f /home/ubuntu/.ssh/devin_slurm_demo -C devin-slurm-demo
-DEVIN_PUBKEY="$(cat /home/ubuntu/.ssh/devin_slurm_demo.pub)"
+ssh-keygen -t ed25519 -N "" -f /home/ubuntu/.ssh/alice_slurm_demo -C alice-slurm-demo
+ALICE_PUBKEY="$(cat /home/ubuntu/.ssh/alice_slurm_demo.pub)"
 ```
 
-Add or modify LDAP entries on the writable primary:
+Add the LDAP entries on the writable primary if `alice` does not already exist:
 
 ```bash
-cat >/tmp/devin.ldif <<EOF
-dn: cn=devin,ou=Groups,dc=example,dc=org
+cat >/tmp/alice.ldif <<EOF
+dn: cn=alice,ou=Groups,dc=example,dc=org
 objectClass: top
 objectClass: posixGroup
-cn: devin
-gidNumber: 10002
-memberUid: devin
+cn: alice
+gidNumber: 10001
+memberUid: alice
 
-dn: cn=project-devin,ou=Groups,dc=example,dc=org
+dn: cn=project-a,ou=Groups,dc=example,dc=org
 objectClass: top
 objectClass: posixGroup
-cn: project-devin
-gidNumber: 11002
-memberUid: devin
+cn: project-a
+gidNumber: 11001
+memberUid: alice
 
-dn: uid=devin,ou=People,dc=example,dc=org
+dn: uid=alice,ou=People,dc=example,dc=org
 objectClass: inetOrgPerson
 objectClass: posixAccount
 objectClass: shadowAccount
-cn: Devin Slurm
+cn: Alice Slurm
 sn: Slurm
-uid: devin
-uidNumber: 10002
-gidNumber: 10002
-homeDirectory: /home/devin
+uid: alice
+uidNumber: 10001
+gidNumber: 10001
+homeDirectory: /home/alice
 loginShell: /bin/bash
-userPassword: devinpw
-description: ${DEVIN_PUBKEY}
+userPassword: alicepw
+description: ${ALICE_PUBKEY}
 EOF
 
-kubectl -n identity cp /tmp/devin.ldif openldap-0:/tmp/devin.ldif
+kubectl -n identity cp /tmp/alice.ldif openldap-0:/tmp/alice.ldif
 kubectl -n identity exec openldap-0 -- \
   /opt/bitnami/openldap/bin/ldapadd \
     -x -H ldap://127.0.0.1:1389 \
     -D cn=admin,dc=example,dc=org -w adminpassword \
-    -f /tmp/devin.ldif
+    -f /tmp/alice.ldif
 ```
 
 Create the FSS home:
 
 ```bash
 kubectl -n slurm exec deploy/slurm-login-slinky -c login -- sh -lc '
-  mkdir -p /home/devin
-  chown 10002:10002 /home/devin
-  chmod 700 /home/devin
+  mkdir -p /home/alice
+  chown 10001:10001 /home/alice
+  chmod 700 /home/alice
   chmod 711 /home
-  ls -ld /home /home/devin
+  ls -ld /home /home/alice
 '
 ```
 
@@ -614,9 +614,9 @@ Create the Slurm accounting association:
 
 ```bash
 kubectl -n slurm exec slurm-controller-0 -c slurmctld -- sh -lc '
-  sacctmgr -i add account project-devin Description="Project Devin" Organization=example || true
-  sacctmgr -i add user name=devin account=project-devin defaultaccount=project-devin || true
-  sacctmgr -nP show assoc user=devin format=User,Account,DefaultQOS,QOS
+  sacctmgr -i add account project-a Description="Project A" Organization=example || true
+  sacctmgr -i add user name=alice account=project-a defaultaccount=project-a || true
+  sacctmgr -nP show assoc user=alice format=User,Account,DefaultQOS,QOS
 '
 ```
 
@@ -625,15 +625,15 @@ kubectl -n slurm exec slurm-controller-0 -c slurmctld -- sh -lc '
 Validate LDAP/SSSD from controller, login, and worker pods:
 
 ```bash
-kubectl -n slurm exec slurm-controller-0 -c slurmctld -- getent passwd devin
-kubectl -n slurm exec slurm-controller-0 -c slurmctld -- id devin
+kubectl -n slurm exec slurm-controller-0 -c slurmctld -- getent passwd alice
+kubectl -n slurm exec slurm-controller-0 -c slurmctld -- id alice
 
-kubectl -n slurm exec deploy/slurm-login-slinky -c login -- getent passwd devin
-kubectl -n slurm exec deploy/slurm-login-slinky -c login -- id devin
-kubectl -n slurm exec deploy/slurm-login-slinky -c login -- sss_ssh_authorizedkeys devin
+kubectl -n slurm exec deploy/slurm-login-slinky -c login -- getent passwd alice
+kubectl -n slurm exec deploy/slurm-login-slinky -c login -- id alice
+kubectl -n slurm exec deploy/slurm-login-slinky -c login -- sss_ssh_authorizedkeys alice
 
-kubectl -n slurm exec slurm-worker-gb300-0 -c slurmd -- getent passwd devin
-kubectl -n slurm exec slurm-worker-gb300-0 -c slurmd -- id devin
+kubectl -n slurm exec slurm-worker-gb300-0 -c slurmd -- getent passwd alice
+kubectl -n slurm exec slurm-worker-gb300-0 -c slurmd -- id alice
 ```
 
 Use the actual worker pod for your shape. Some containers do not include
@@ -646,19 +646,19 @@ Validate SSH and FSS isolation:
 LOGIN_IP="$(kubectl -n slurm get svc slurm-login-slinky \
   -o jsonpath='{.status.loadBalancer.ingress[0].ip}')"
 
-ssh -i /home/ubuntu/.ssh/devin_slurm_demo \
+ssh -i /home/ubuntu/.ssh/alice_slurm_demo \
   -o BatchMode=yes \
   -o StrictHostKeyChecking=no \
-  devin@"${LOGIN_IP}" \
-  'whoami; id; pwd; ls -ld /home /home/devin; ls /home/alice 2>&1 || true'
+  alice@"${LOGIN_IP}" \
+  'whoami; id; pwd; ls -ld /home /home/alice; ls /home/bob 2>&1 || true'
 ```
 
 Expected result:
 
-- `whoami` returns `devin`;
-- `pwd` is `/home/devin`;
-- `/home/devin` is owned by `devin`;
-- other users' homes are not readable.
+- `whoami` returns `alice`;
+- `pwd` is `/home/alice`;
+- `/home/alice` is owned by `alice`;
+- other users' homes are not readable when present.
 
 Validate Slurm sees the user and GPUs:
 
@@ -666,31 +666,31 @@ Validate Slurm sees the user and GPUs:
 kubectl -n slurm exec slurm-controller-0 -c slurmctld -- \
   sinfo -N -o '%N|%t|%C|%m|%G|%E'
 
-ssh -i /home/ubuntu/.ssh/devin_slurm_demo \
+ssh -i /home/ubuntu/.ssh/alice_slurm_demo \
   -o BatchMode=yes \
   -o StrictHostKeyChecking=no \
-  devin@"${LOGIN_IP}" \
-  'squeue -u devin; sacct -u devin --format=JobID,User,Account,State,ExitCode -P | tail'
+  alice@"${LOGIN_IP}" \
+  'squeue -u alice; sacct -u alice --format=JobID,User,Account,State,ExitCode -P | tail'
 ```
 
 Submit a GPU smoke test. For NVIDIA shapes:
 
 ```bash
-ssh -i /home/ubuntu/.ssh/devin_slurm_demo \
+ssh -i /home/ubuntu/.ssh/alice_slurm_demo \
   -o BatchMode=yes \
   -o StrictHostKeyChecking=no \
-  devin@"${LOGIN_IP}" \
-  'sbatch -A project-devin --gres=gpu:1 --wrap="hostname; nvidia-smi -L"'
+  alice@"${LOGIN_IP}" \
+  'sbatch -A project-a --gres=gpu:1 --wrap="hostname; nvidia-smi -L"'
 ```
 
 For `BM.GPU.MI300X.8`:
 
 ```bash
-ssh -i /home/ubuntu/.ssh/devin_slurm_demo \
+ssh -i /home/ubuntu/.ssh/alice_slurm_demo \
   -o BatchMode=yes \
   -o StrictHostKeyChecking=no \
-  devin@"${LOGIN_IP}" \
-  'sbatch -A project-devin --gres=gpu:1 --wrap="hostname; rocm-smi --showproductname --showdriverversion"'
+  alice@"${LOGIN_IP}" \
+  'sbatch -A project-a --gres=gpu:1 --wrap="hostname; rocm-smi --showproductname --showdriverversion"'
 ```
 
 Check accounting after the job finishes:
@@ -698,14 +698,14 @@ Check accounting after the job finishes:
 ```bash
 JOB=<job-id>
 
-ssh -i /home/ubuntu/.ssh/devin_slurm_demo \
+ssh -i /home/ubuntu/.ssh/alice_slurm_demo \
   -o BatchMode=yes \
   -o StrictHostKeyChecking=no \
-  devin@"${LOGIN_IP}" \
+  alice@"${LOGIN_IP}" \
   "sacct -j ${JOB} --format=JobID,User,Account,State,ExitCode,AllocTRES%80,NodeList -P"
 ```
 
-The top-level job row should show `User=devin` and `Account=project-devin`.
+The top-level job row should show `User=alice` and `Account=project-a`.
 Batch and extern child rows may have an empty `User` column; that is normal
 Slurm accounting output.
 
@@ -721,7 +721,7 @@ iad.ocir.io/idxzjcdglx2s/slinky:slurmd-nvml-nccl-25.11.5-ubuntu24.04-r2
 Use the demo guide:
 
 ```text
-slurm-operator/docs/usage/oke-gb300-devin-nccl-demo.md
+slurm-operator/docs/usage/oke-gb300-alice-nccl-demo.md
 ```
 
 The tested NCCL launch pattern uses `eth0` instead of a hardcoded VCN CIDR and
@@ -738,7 +738,7 @@ Core launch settings:
 -x IB_RX_QUEUE_LEN=8192
 -x HCOLL_ENABLE_MCAST_ALL=0
 -x coll_hcoll_enable=0
--x NCCL_TOPO_DUMP_FILE=/home/devin/nccl-topo-$(date +%F-%H%M%S).txt
+-x NCCL_TOPO_DUMP_FILE=/home/alice/nccl-topo-$(date +%F-%H%M%S).txt
 -x NCCL_SOCKET_IFNAME=eth0
 -x NCCL_IB_HCA=rdma_vf_rail0,rdma_vf_rail1,rdma_vf_rail2,rdma_vf_rail3
 -x NCCL_IB_GID_INDEX=3

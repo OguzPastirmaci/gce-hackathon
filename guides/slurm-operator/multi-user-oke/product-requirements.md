@@ -169,7 +169,7 @@ The current OKE validation covers three shape-specific tracks.
   socket/core/thread configuration;
 - HA OpenLDAP, SSSD, cert-manager LDAP TLS, FSS homes, MariaDB, SlurmDBD, and
   Slurm account associations were validated end to end;
-- the `devin` demo validates SSH as a real LDAP user, `/home/devin` isolation,
+- the `alice` demo validates SSH as a real LDAP user, `/home/alice` isolation,
   Slurm account association, job submission, accounting, and NCCL output;
 - the current full worker image is
   `iad.ocir.io/idxzjcdglx2s/slinky:slurmd-nvml-nccl-25.11.5-ubuntu24.04-r2`;
@@ -892,7 +892,7 @@ Related LDAP option docs:
 /Users/opastirm/Documents/Repos/slurm-operator/docs/usage/ldap-sssd-ha-openldap.md
 /Users/opastirm/Documents/Repos/slurm-operator/docs/usage/oke-slurm-shape-runbooks.md
 /Users/opastirm/Documents/Repos/slurm-operator/docs/usage/oke-gb200-final-cluster-capture.md
-/Users/opastirm/Documents/Repos/slurm-operator/docs/usage/oke-gb300-devin-nccl-demo.md
+/Users/opastirm/Documents/Repos/slurm-operator/docs/usage/oke-gb300-alice-nccl-demo.md
 ```
 
 Guide repo assets:
